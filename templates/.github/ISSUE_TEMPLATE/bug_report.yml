@@ -1,0 +1,53 @@
+name: Bug report
+description: Something behaves differently than documented or expected.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Please do **not** report security vulnerabilities here — see
+        [SECURITY.md](../blob/main/SECURITY.md) for the private reporting route.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What you observed, and what you expected instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: >-
+        The smallest sequence that reproduces it. A failing test or a command with its
+        output is worth more than a description.
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Release version or commit SHA.
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, architecture, and toolchain version where relevant.
+      placeholder: "macOS 15.2 arm64, rustc 1.85.0"
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Paste logs or a backtrace. This is rendered as code, so no backticks needed.
+      render: shell

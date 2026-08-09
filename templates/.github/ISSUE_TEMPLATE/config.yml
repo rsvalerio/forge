@@ -1,0 +1,11 @@
+# Removes the "Open a blank issue" escape hatch so reports arrive with the fields the
+# templates ask for. Security reports are routed to the private advisory flow instead of
+# a public issue.
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/rsvalerio/{{REPO}}/security/advisories/new
+    about: Report privately via GitHub Security Advisories. Never open a public issue.
+  - name: Questions and ideas
+    url: https://github.com/rsvalerio/{{REPO}}/discussions
+    about: For usage questions and open-ended discussion.
