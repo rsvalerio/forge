@@ -1,0 +1,72 @@
+name: App bot identity
+description: >-
+  Resolve a GitHub App's bot user (`${APP_SLUG}[bot]` and its numeric id) and configure
+  git's author/committer identity to match, so commits are attributed to the App rather
+  than to `github-actions[bot]` or a vendor default.
+
+# The numeric id is what makes the attribution stick: GitHub links a commit to a bot
+# account via the `<id>+<login>@users.noreply.github.com` address, not via the name.
+
+inputs:
+  token:
+    description: An installation token for the App, used to look the bot user up.
+    required: true
+  app-slug:
+    description: The App slug from mint-app-token's `app-slug` output.
+    required: true
+  global:
+    description: Configure `git config --global` instead of the current repository only.
+    required: false
+    default: "false"
+  working-directory:
+    description: Directory to run `git config` in when `global` is false.
+    required: false
+    default: "."
+
+outputs:
+  name:
+    description: The configured git user.name, e.g. `my-cloud-ci[bot]`.
+    value: ${{ steps.resolve.outputs.name }}
+  email:
+    description: The configured git user.email.
+    value: ${{ steps.resolve.outputs.email }}
+  user-id:
+    description: The bot account's numeric user id.
+    value: ${{ steps.resolve.outputs.user-id }}
+
+runs:
+  using: composite
+  steps:
+    - name: Resolve bot identity and configure git
+      id: resolve
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        APP_SLUG: ${{ inputs.app-slug }}
+        GLOBAL: ${{ inputs.global }}
+      run: |
+        set -euo pipefail
+
+        if [ -z "${APP_SLUG//[[:space:]]/}" ]; then
+          echo "::error::app-bot-identity: 'app-slug' is empty." >&2
+          exit 1
+        fi
+
+        user_id="$(gh api "/users/${APP_SLUG}[bot]" --jq .id)"
+        name="${APP_SLUG}[bot]"
+        email="${user_id}+${APP_SLUG}[bot]@users.noreply.github.com"
+
+        scope=()
+        [ "$GLOBAL" = "true" ] && scope=(--global)
+
+        git config "${scope[@]}" user.name  "$name"
+        git config "${scope[@]}" user.email "$email"
+
+        {
+          echo "name=$name"
+          echo "email=$email"
+          echo "user-id=$user_id"
+        } >>"$GITHUB_OUTPUT"
+
+        echo "git identity: $name <$email>"

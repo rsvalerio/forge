@@ -1,0 +1,71 @@
+name: Mint App token
+description: >-
+  Mint a short-lived GitHub App installation token, scoped to an explicit list of
+  repositories. Wraps actions/create-github-app-token with the least-privilege
+  `repositories:` argument made mandatory.
+
+# Why this exists: `actions/create-github-app-token` scopes the token to *every*
+# repository in the App installation when `repositories:` is omitted. That default is
+# silent and easy to drop when a workflow is copied between repos — which is exactly
+# what happened (SEC-18 / TASK-1654 landed in ops, never reached oxydraw). Making the
+# argument required here means the fix cannot drift again.
+
+inputs:
+  repositories:
+    description: >-
+      Comma- or newline-separated repository names (not owner/name) the token may act on.
+      Required — there is deliberately no "all repositories" default. Use
+      `${{ github.event.repository.name }}` for own-repo tokens.
+    required: true
+  private-key:
+    description: The App's private key, e.g. secrets.GH_APP_PRIVATE_KEY.
+    required: true
+  client-id:
+    description: The App's client id, e.g. vars.GH_APP_CLIENT_ID.
+    required: true
+  owner:
+    description: Owner of the target repositories.
+    required: false
+    default: rsvalerio
+outputs:
+  token:
+    description: The installation access token.
+    value: ${{ steps.mint.outputs.token }}
+  app-slug:
+    description: The App's slug, e.g. `my-cloud-ci`. Used to derive the bot identity.
+    value: ${{ steps.mint.outputs.app-slug }}
+  installation-id:
+    description: The App installation id the token was minted from.
+    value: ${{ steps.mint.outputs.installation-id }}
+
+runs:
+  using: composite
+  steps:
+    # Composite-action inputs marked `required: true` are NOT enforced by the runner —
+    # an omitted input arrives as the empty string. Enforce it ourselves, or the whole
+    # point of this wrapper is lost.
+    - name: Require an explicit repository scope
+      shell: bash
+      env:
+        REPOSITORIES: ${{ inputs.repositories }}
+        CLIENT_ID: ${{ inputs.client-id }}
+      run: |
+        if [ -z "${REPOSITORIES//[[:space:]]/}" ]; then
+          echo "::error::mint-app-token: 'repositories' is empty. Pass an explicit scope;" \
+               "an unscoped token reaches every repository in the App installation." >&2
+          exit 1
+        fi
+        if [ -z "${CLIENT_ID//[[:space:]]/}" ]; then
+          echo "::error::mint-app-token: 'client-id' is empty. Is vars.GH_APP_CLIENT_ID set" \
+               "on the calling repository or its organisation?" >&2
+          exit 1
+        fi
+
+    - name: Mint installation token
+      id: mint
+      uses: actions/create-github-app-token@v3
+      with:
+        client-id: ${{ inputs.client-id }}
+        private-key: ${{ inputs.private-key }}
+        owner: ${{ inputs.owner }}
+        repositories: ${{ inputs.repositories }}
