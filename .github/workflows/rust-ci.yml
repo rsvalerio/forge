@@ -1,0 +1,190 @@
+name: Rust CI
+
+# Shared fmt / check / clippy / build / test / deny gates.
+#
+# Consolidated from ops/.github/workflows/ci.yml and oxydraw/.github/workflows/ci.yml,
+# which had drifted by ~58 lines. Two divergences were resolved rather than preserved:
+#
+#   * ops ran `cargo fmt --all` with no `--check`, so a misformatted tree reformatted
+#     itself on the runner and passed. oxydraw's `--check` is the correct gate; that is
+#     what this uses, and it is why `fmt` may fail on first adoption in ops.
+#   * oxydraw's `deps` job pins RUSTC_WRAPPER to "" because cargo-deny gains nothing from
+#     sccache. Adopted here for both.
+#
+# oxydraw's `frontend` job is deliberately NOT here — it is Bun/SPA-specific and has one
+# consumer (see PLAN.md open question 4). It stays in oxydraw's own ci.yml.
+
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        description: Directory containing the Cargo workspace. oxydraw uses `backend`.
+        type: string
+        required: false
+        default: "."
+      toolchain:
+        description: Rust toolchain to install.
+        type: string
+        required: false
+        default: stable
+      runs-on:
+        description: Runner label.
+        type: string
+        required: false
+        default: ubuntu-latest
+      cargo-flags:
+        description: Flags appended to check/clippy/build/test.
+        type: string
+        required: false
+        default: --all --all-features
+      clippy-args:
+        description: Args passed after `--` to clippy.
+        type: string
+        required: false
+        default: -D warnings
+      test-args:
+        description: >-
+          Args passed after `--` to the test binaries. ops uses `--ignored` to run its
+          integration tests.
+        type: string
+        required: false
+        default: ""
+      env-json:
+        description: >-
+          JSON object of extra environment variables for the test job, e.g.
+          '{"OPS_LOG_LEVEL":"debug"}'.
+        type: string
+        required: false
+        default: "{}"
+      run-deny:
+        description: Run `cargo deny check`.
+        type: boolean
+        required: false
+        default: true
+      run-tests:
+        description: Run the test job.
+        type: boolean
+        required: false
+        default: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  RUSTC_WRAPPER: sccache
+
+jobs:
+  fmt:
+    name: Format
+    runs-on: ${{ inputs.runs-on }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: ${{ inputs.toolchain }}
+          components: rustfmt
+          rustflags: ""
+      - uses: mozilla-actions/sccache-action@v0.0.9
+      - name: cargo fmt --all --check
+        working-directory: ${{ inputs.working-directory }}
+        run: cargo fmt --all --check
+
+  check:
+    name: Check
+    runs-on: ${{ inputs.runs-on }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: ${{ inputs.toolchain }}
+          rustflags: ""
+      - uses: mozilla-actions/sccache-action@v0.0.9
+      - name: cargo check
+        working-directory: ${{ inputs.working-directory }}
+        run: cargo check ${{ inputs.cargo-flags }}
+
+  clippy:
+    name: Lint
+    runs-on: ${{ inputs.runs-on }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: ${{ inputs.toolchain }}
+          components: clippy
+          rustflags: ""
+      - uses: mozilla-actions/sccache-action@v0.0.9
+      - name: cargo clippy
+        working-directory: ${{ inputs.working-directory }}
+        run: cargo clippy ${{ inputs.cargo-flags }} -- ${{ inputs.clippy-args }}
+
+  build:
+    name: Build
+    runs-on: ${{ inputs.runs-on }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: ${{ inputs.toolchain }}
+          rustflags: ""
+      - uses: mozilla-actions/sccache-action@v0.0.9
+      - name: cargo build
+        working-directory: ${{ inputs.working-directory }}
+        run: cargo build ${{ inputs.cargo-flags }}
+
+  test:
+    name: Test
+    if: inputs.run-tests
+    runs-on: ${{ inputs.runs-on }}
+    env: ${{ fromJSON(inputs.env-json) }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: ${{ inputs.toolchain }}
+          rustflags: ""
+      - uses: mozilla-actions/sccache-action@v0.0.9
+      - name: cargo test
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          # $TEST_ARGS is a caller-supplied flag list and must word-split.
+          # shellcheck disable=SC2086
+          if [ -n "${TEST_ARGS// /}" ]; then
+            cargo test ${{ inputs.cargo-flags }} -- $TEST_ARGS
+          else
+            cargo test ${{ inputs.cargo-flags }}
+          fi
+        env:
+          TEST_ARGS: ${{ inputs.test-args }}
+
+  deps:
+    name: Deps
+    if: inputs.run-deny
+    runs-on: ${{ inputs.runs-on }}
+    env:
+      # cargo-deny does no compilation worth caching, and sccache only adds a failure mode.
+      RUSTC_WRAPPER: ""
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: ${{ inputs.toolchain }}
+          rustflags: ""
+      - name: Install cargo-deny
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny
+      - name: cargo deny check
+        working-directory: ${{ inputs.working-directory }}
+        run: cargo deny check
