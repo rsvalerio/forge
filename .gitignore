@@ -1,0 +1,7 @@
+# Working directory used by the reusable workflows to check forge out into a consumer's
+# workspace. Never committed, but it shows up when testing workflows locally.
+/.forge/
+/.apt/
+/tap/
+
+.DS_Store
