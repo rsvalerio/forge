@@ -1,0 +1,183 @@
+name: Test self
+
+# forge's own CI. A shared repo means one bad commit can break every consumer's release
+# pipeline at once (PLAN.md §8), so the machinery is linted and the actions are actually
+# exercised before a tag is cut.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint workflows and actions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      # actionlint understands workflow syntax, expression contexts and `uses:` refs, and
+      # runs shellcheck over every `run:` block.
+      - name: actionlint
+        uses: raven-actions/actionlint@v2
+        with:
+          fail-on-error: true
+
+      - name: shellcheck standalone scripts
+        run: |
+          set -euo pipefail
+          shopt -s globstar nullglob
+          scripts=(actions/**/*.sh)
+          printf 'checking %s\n' "${scripts[@]}"
+          shellcheck "${scripts[@]}"
+
+      - name: Every script is executable
+        run: |
+          set -euo pipefail
+          shopt -s globstar nullglob
+          status=0
+          for f in actions/**/*.sh; do
+            [ -x "$f" ] || { echo "::error file=$f::not executable (chmod +x)"; status=1; }
+          done
+          exit $status
+
+      - name: Every action directory has a well-formed action.yml
+        run: |
+          set -euo pipefail
+          status=0
+          for dir in actions/*/; do
+            f="${dir}action.yml"
+            if [ ! -f "$f" ]; then
+              echo "::error::${dir} has no action.yml"; status=1; continue
+            fi
+            for key in name description runs; do
+              yq -e ".${key}" "$f" >/dev/null 2>&1 \
+                || { echo "::error file=$f::missing required key '${key}'"; status=1; }
+            done
+            [ "$(yq -r '.runs.using' "$f")" = "composite" ] \
+              || { echo "::error file=$f::runs.using must be 'composite'"; status=1; }
+          done
+          exit $status
+
+      - name: Shared configs parse as TOML
+        run: |
+          set -euo pipefail
+          for f in config/*.toml; do
+            yq -p toml -o json "$f" >/dev/null || { echo "::error file=$f::invalid TOML"; exit 1; }
+            echo "ok: $f"
+          done
+
+  # Proves the claim the whole verified-bump design rests on: that GraphQL
+  # createCommitOnBranch — and only it — yields verified=true. Runs against a throwaway
+  # branch in this repository, and always deletes it.
+  signed-commit:
+    name: signed-commit integration
+    runs-on: ubuntu-latest
+    # Forks cannot mint the App token, and the secret is not exposed to them anyway.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Mint own-repo token
+        id: app-token
+        uses: ./actions/mint-app-token
+        with:
+          client-id: ${{ vars.GH_APP_CLIENT_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          repositories: ${{ github.event.repository.name }}
+
+      - name: Configure App bot identity
+        id: identity
+        uses: ./actions/app-bot-identity
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          app-slug: ${{ steps.app-token.outputs.app-slug }}
+
+      - name: Create a scratch branch and a local commit
+        id: scratch
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          set -euo pipefail
+          branch="ci/signed-commit-test-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          base="$(git rev-parse HEAD)"
+          gh api "/repos/${GITHUB_REPOSITORY}/git/refs" \
+            -f "ref=refs/heads/${branch}" -f "sha=${base}" >/dev/null
+
+          # Exercise all three file-change kinds the action claims to support:
+          # add, modify, delete.
+          mkdir -p .probe
+          echo "added at ${GITHUB_RUN_ID}" >.probe/added.txt   # add
+          echo "modified at ${GITHUB_RUN_ID}" >>README.md      # modify
+          git rm -q actions/signed-commit/testdata/deleteme.txt # delete
+          git add -A .probe README.md
+          git commit -q -m "test: signed-commit probe" -m "Body line preserved."
+
+          echo "branch=$branch" >>"$GITHUB_OUTPUT"
+          echo "base=$base" >>"$GITHUB_OUTPUT"
+
+      - name: Replay it as a signed commit
+        id: signed
+        uses: ./actions/signed-commit
+        with:
+          branch: ${{ steps.scratch.outputs.branch }}
+          base: ${{ steps.scratch.outputs.base }}
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Assert signature, author and message
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          SHA: ${{ steps.signed.outputs.sha }}
+          EXPECTED_AUTHOR: ${{ steps.identity.outputs.name }}
+        run: |
+          set -euo pipefail
+          commit="$(gh api "/repos/${GITHUB_REPOSITORY}/commits/${SHA}")"
+
+          verified="$(jq -r .commit.verification.verified <<<"$commit")"
+          author="$(jq -r .author.login <<<"$commit")"
+          headline="$(jq -r '.commit.message | split("\n")[0]' <<<"$commit")"
+          body="$(jq -r .commit.message <<<"$commit")"
+
+          echo "verified=$verified author=$author headline=$headline"
+
+          [ "$verified" = "true" ] || { echo "::error::commit is not verified"; exit 1; }
+          [ "$author" = "$EXPECTED_AUTHOR" ] \
+            || { echo "::error::author is '$author', expected '$EXPECTED_AUTHOR'"; exit 1; }
+          [ "$headline" = "test: signed-commit probe" ] \
+            || { echo "::error::headline not preserved: '$headline'"; exit 1; }
+          grep -q "Body line preserved." <<<"$body" \
+            || { echo "::error::body not preserved"; exit 1; }
+
+          # The signing identity is GitHub itself; that is what makes the badge appear.
+          [ "$(jq -r .commit.committer.name <<<"$commit")" = "GitHub" ] \
+            || echo "::warning::committer is not 'GitHub' — signing behaviour may have changed"
+
+          # The delete path is the one most easily broken without noticing, since a
+          # commit with only additions still looks correct.
+          files="$(jq -r '.files[] | "\(.status) \(.filename)"' <<<"$commit")"
+          echo "$files"
+          grep -q "^added .probe/added.txt$" <<<"$files" \
+            || { echo "::error::addition not applied"; exit 1; }
+          grep -q "^modified README.md$" <<<"$files" \
+            || { echo "::error::modification not applied"; exit 1; }
+          grep -q "^removed actions/signed-commit/testdata/deleteme.txt$" <<<"$files" \
+            || { echo "::error::deletion not applied"; exit 1; }
+
+      - name: Delete the scratch branch
+        if: always() && steps.scratch.outputs.branch != ''
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          BRANCH: ${{ steps.scratch.outputs.branch }}
+        run: |
+          gh api -X DELETE "/repos/${GITHUB_REPOSITORY}/git/refs/heads/${BRANCH}" \
+            >/dev/null 2>&1 || echo "scratch branch already gone"
