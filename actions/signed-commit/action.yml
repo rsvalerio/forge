@@ -1,0 +1,86 @@
+name: Signed commit
+description: >-
+  Replay the working tree's last commit onto a branch as a GitHub-signed commit, using
+  the GraphQL `createCommitOnBranch` mutation. The commit's author is the calling token's
+  identity; the committer (and signature) is GitHub itself.
+
+# Only GraphQL produces a Verified badge. Probed 2026-08-09 against rsvalerio/ops:
+#
+#   git push over HTTPS/SSH ........... unsigned unless the pusher signs locally
+#   REST Git Data API (git/commits) ... verified=false, reason=unsigned
+#   REST Contents API (PUT contents) .. verified=false, reason=unsigned
+#   GraphQL createCommitOnBranch ...... verified=true,  reason=valid
+#
+# This corrects ops/docs/verified-bump/README.md, whose Option A is built on the REST
+# Git Data API and therefore cannot produce a signed commit.
+
+inputs:
+  repository:
+    description: Target repository as `owner/name`.
+    required: false
+    default: ${{ github.repository }}
+  branch:
+    description: Branch to commit onto. Must currently point at `base`.
+    required: true
+  base:
+    description: >-
+      The commit the branch is expected to be at, and the base of the replayed diff.
+      Must exist in the *local* clone — the diff is computed locally. In a bump flow
+      this is `HEAD^`.
+    required: true
+  token:
+    description: >-
+      Token used for the mutation. Its identity becomes the commit's author, so pass an
+      App installation token to attribute the commit to that App's bot.
+    required: true
+  working-directory:
+    description: Directory of the local git clone to read the commit and diff from.
+    required: false
+    default: "."
+  verify:
+    description: After committing, assert GitHub reports the new commit as verified.
+    required: false
+    default: "true"
+
+outputs:
+  sha:
+    description: SHA of the newly created signed commit.
+    value: ${{ steps.commit.outputs.sha }}
+
+runs:
+  using: composite
+  steps:
+    - name: Create signed commit
+      id: commit
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        REPOSITORY: ${{ inputs.repository }}
+        BRANCH: ${{ inputs.branch }}
+        BASE: ${{ inputs.base }}
+      run: |
+        set -euo pipefail
+        base_sha="$(git rev-parse --verify "$BASE^{commit}")"
+        sha="$("${GITHUB_ACTION_PATH}/signed-commit.sh" "$REPOSITORY" "$BRANCH" "$base_sha")"
+        echo "sha=$sha" >>"$GITHUB_OUTPUT"
+        echo "created $sha on $REPOSITORY@$BRANCH" >>"$GITHUB_STEP_SUMMARY"
+
+    - name: Assert the commit is verified
+      if: inputs.verify == 'true'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        REPOSITORY: ${{ inputs.repository }}
+        SHA: ${{ steps.commit.outputs.sha }}
+      run: |
+        set -euo pipefail
+        read -r verified reason < <(
+          gh api "/repos/${REPOSITORY}/commits/${SHA}" \
+            --jq '[.commit.verification.verified, .commit.verification.reason] | @tsv'
+        )
+        echo "verification: verified=$verified reason=$reason"
+        if [ "$verified" != "true" ]; then
+          echo "::error::signed-commit: ${SHA} is not verified (reason: ${reason})." >&2
+          exit 1
+        fi

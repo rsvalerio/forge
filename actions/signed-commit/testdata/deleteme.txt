@@ -1,0 +1,4 @@
+Fixture for the signed-commit integration test in .github/workflows/test-self.yml.
+
+The probe deletes this file on a throwaway branch so the action's `deletions` path is
+actually exercised, not just its `additions` path. It is never deleted on main.
