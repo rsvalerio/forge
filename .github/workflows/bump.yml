@@ -1,0 +1,271 @@
+name: Bump
+
+# Shared conventional-commit version bump: cocogitto determines the version, writes the
+# CHANGELOG and Cargo.toml, and the result is pushed as a GitHub-*signed* commit plus a
+# version tag.
+#
+# This is the union of the two repos' copies plus the fixes neither had (PLAN.md §10
+# gotcha 2 — migrate fixes as you extract, or you freeze one repo's regression):
+#
+#   * ops's least-privilege `repositories:` token scoping (SEC-18 / TASK-1654), which
+#     oxydraw's copy omitted — its bump minted a token for every repo in the installation.
+#   * oxydraw's App-bot attribution, which ops's copy lacked — ops still committed as
+#     `github-actions[bot]`.
+#   * NEW: `--skip-ci`, closing TASK-1659. cog.toml's `skip_ci` only *defines* the marker;
+#     it is applied only when `cog bump` is passed `--skip-ci`, which no existing workflow
+#     did — so every bump commit re-ran the full CI + Bump cycle.
+#   * NEW: signed commits via GraphQL (PLAN.md §6). Neither repo produced a Verified badge.
+
+on:
+  workflow_call:
+    inputs:
+      branch:
+        description: >-
+          Branch to bump. Callers triggered by `workflow_run` should pass the
+          `github.event.workflow_run.head_branch` of the run that succeeded.
+        type: string
+        required: false
+        default: main
+      signed:
+        description: >-
+          Push the bump as a GitHub-signed commit via GraphQL `createCommitOnBranch`
+          instead of `git push`. Requires cog.toml to have NO `git push` post_bump_hooks
+          (this workflow verifies that and fails loudly if it finds them).
+        type: boolean
+        required: false
+        default: true
+      skip-ci:
+        description: Pass `--skip-ci` to `cog bump`, so the bump commit does not re-trigger CI.
+        type: boolean
+        required: false
+        default: true
+      owner:
+        description: Repository owner, used for App token scoping.
+        type: string
+        required: false
+        default: rsvalerio
+      app-client-id:
+        description: >-
+          GitHub App client id. Defaults to the caller's `vars.GH_APP_CLIENT_ID`; pass
+          explicitly if the variable is not visible to this workflow.
+        type: string
+        required: false
+        default: ""
+      forge-ref:
+        description: >-
+          Ref of rsvalerio/forge to load composite actions from. Real consumers leave this
+          at the default; forge-testbed passes `main` so breakage surfaces there first
+          (PLAN.md §7.4).
+        type: string
+        required: false
+        default: v1
+      working-directory:
+        description: Directory to run `cog` in.
+        type: string
+        required: false
+        default: "."
+      install-tools:
+        description: Tools installed via taiki-e/install-action.
+        type: string
+        required: false
+        default: cargo-edit,cocogitto
+      runs-on:
+        type: string
+        required: false
+        default: ubuntu-latest
+    secrets:
+      GH_APP_PRIVATE_KEY:
+        description: Private key of the GitHub App used to mint the bump token.
+        required: true
+    outputs:
+      version:
+        description: The version cocogitto bumped to, empty if nothing to release.
+        value: ${{ jobs.bump.outputs.version }}
+      tag:
+        description: The tag created, empty if nothing to release.
+        value: ${{ jobs.bump.outputs.tag }}
+      commit:
+        description: SHA of the pushed bump commit.
+        value: ${{ jobs.bump.outputs.commit }}
+
+permissions:
+  contents: read
+
+jobs:
+  bump:
+    name: Bump
+    runs-on: ${{ inputs.runs-on }}
+    outputs:
+      version: ${{ steps.cog.outputs.version }}
+      tag: ${{ steps.cog.outputs.tag }}
+      commit: ${{ steps.push.outputs.sha }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.branch }}
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+
+      # Composite actions referenced by a *reusable* workflow with a `./` path resolve
+      # against the CALLER's workspace, not forge's. So forge is checked out into the
+      # workspace and used from there. The path is static (`uses:` cannot take an
+      # expression) but the ref is not, which is what lets the testbed float on main.
+      # This must come AFTER the checkout above, which cleans the workspace root.
+      - name: Check out forge
+        uses: actions/checkout@v6
+        with:
+          repository: rsvalerio/forge
+          ref: ${{ inputs.forge-ref }}
+          path: .forge
+          persist-credentials: false
+
+      - name: Keep forge out of the bump commit
+        run: echo '/.forge/' >>.git/info/exclude
+
+      - name: Mint bump token (GitHub App)
+        id: app-token
+        uses: ./.forge/actions/mint-app-token
+        with:
+          client-id: ${{ inputs.app-client-id || vars.GH_APP_CLIENT_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          owner: ${{ inputs.owner }}
+          # Least privilege: this job only ever writes to the repository being bumped.
+          repositories: ${{ github.event.repository.name }}
+
+      - name: Configure App bot identity
+        uses: ./.forge/actions/app-bot-identity
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          app-slug: ${{ steps.app-token.outputs.app-slug }}
+
+      - name: Install ${{ inputs.install-tools }}
+        uses: taiki-e/install-action@v2
+        with:
+          tool: ${{ inputs.install-tools }}
+
+      # In signed mode the commit is created through the API, so a `git push` post_bump_hook
+      # would race it: cog would push the UNSIGNED commit first, leaving the branch ahead of
+      # `expectedHeadOid` and the GraphQL mutation would fail with a confusing conflict.
+      # Catch the misconfiguration here, where the message can explain it.
+      - name: Verify cog.toml is compatible with signed mode
+        if: inputs.signed
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          set -euo pipefail
+          if [ ! -f cog.toml ]; then
+            echo "::error::bump: no cog.toml in $(pwd)." >&2
+            exit 1
+          fi
+          if grep -qE '^\s*"git push' cog.toml; then
+            echo "::error::bump: cog.toml still has \`git push\` post_bump_hooks, which are" \
+                 "incompatible with signed mode. This workflow pushes the commit and the tag" \
+                 "itself via the API. Remove the push hooks, or call with \`signed: false\`." >&2
+            exit 1
+          fi
+
+      - name: Run cog bump --auto
+        id: cog
+        working-directory: ${{ inputs.working-directory }}
+        env:
+          SKIP_CI: ${{ inputs.skip-ci }}
+        run: |
+          set -euo pipefail
+          before="$(git rev-parse HEAD)"
+
+          args=(--auto)
+          [ "$SKIP_CI" = "true" ] && args+=(--skip-ci)
+
+          # cog exits non-zero when there is nothing to release; that is a no-op, not a
+          # failure, so distinguish it by whether HEAD actually moved.
+          set +e
+          cog -vvv bump "${args[@]}"
+          status=$?
+          set -e
+
+          after="$(git rev-parse HEAD)"
+          if [ "$before" = "$after" ]; then
+            echo "no version bump produced (cog exit $status); nothing to release"
+            echo "bumped=false" >>"$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$status" -ne 0 ]; then
+            echo "::error::bump: cog bump moved HEAD but exited $status." >&2
+            exit "$status"
+          fi
+
+          tag="$(git tag --points-at HEAD | head -n1)"
+          if [ -z "$tag" ]; then
+            echo "::error::bump: cog created a commit but no tag points at it." >&2
+            exit 1
+          fi
+
+          {
+            echo "bumped=true"
+            echo "tag=$tag"
+            echo "version=${tag#v}"
+            echo "base=$before"
+          } >>"$GITHUB_OUTPUT"
+          echo "bumped to $tag"
+
+      # Replay the local bump commit through GraphQL so GitHub builds — and signs — the
+      # commit object. Author comes from the App token; committer is GitHub itself. The
+      # action asserts verified=true, so a silent regression to unsigned fails the release.
+      - name: Push the bump as a signed commit
+        id: signed
+        if: steps.cog.outputs.bumped == 'true' && inputs.signed
+        uses: ./.forge/actions/signed-commit
+        with:
+          branch: ${{ inputs.branch }}
+          base: ${{ steps.cog.outputs.base }}
+          token: ${{ steps.app-token.outputs.token }}
+
+      # createCommitOnBranch only creates commits, so the tag is a separate ref pointing at
+      # the signed commit. The tag ref itself is unsigned — normal, invisible in the UI, and
+      # it still triggers the tag-driven release workflow.
+      - name: Create the version tag
+        if: steps.cog.outputs.bumped == 'true' && inputs.signed
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          TAG: ${{ steps.cog.outputs.tag }}
+          SHA: ${{ steps.signed.outputs.sha }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh api "/repos/${REPOSITORY}/git/refs" \
+            -f "ref=refs/tags/${TAG}" -f "sha=${SHA}" >/dev/null
+          echo "tagged ${TAG} at ${SHA}"
+
+      - name: Push the bump unsigned
+        id: unsigned
+        if: steps.cog.outputs.bumped == 'true' && !inputs.signed
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          BRANCH: ${{ inputs.branch }}
+          TAG: ${{ steps.cog.outputs.tag }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          git remote set-url origin \
+            "https://x-access-token:${GH_TOKEN}@github.com/${REPOSITORY}.git"
+          git push origin "HEAD:${BRANCH}"
+          git push origin "$TAG"
+          echo "sha=$(git rev-parse HEAD)" >>"$GITHUB_OUTPUT"
+
+      - name: Summarise
+        id: push
+        if: steps.cog.outputs.bumped == 'true'
+        env:
+          TAG: ${{ steps.cog.outputs.tag }}
+          SIGNED: ${{ inputs.signed }}
+          SHA: ${{ steps.signed.outputs.sha || steps.unsigned.outputs.sha }}
+        run: |
+          set -euo pipefail
+          echo "sha=$SHA" >>"$GITHUB_OUTPUT"
+          {
+            echo "### Bumped \`${TAG}\`"
+            echo
+            echo "- commit: \`${SHA}\`"
+            echo "- signed: \`${SIGNED}\`"
+          } >>"$GITHUB_STEP_SUMMARY"
