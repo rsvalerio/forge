@@ -1,0 +1,139 @@
+name: Publish to crates.io
+
+# Built now, adopted later (PLAN.md §5). This workflow exists so the capability is proven
+# and not written from scratch under time pressure on the day it is wanted — but it ships
+# with NO real consumer. Its only caller is forge-testbed, permanently in `--dry-run`.
+#
+# crates.io publication is irreversible: yanking hides a version but never deletes it, and
+# the crate name is claimed forever. Hence two independent safety interlocks below —
+# `dry-run` defaults to true, and turning it off additionally requires `allow-real-publish`.
+# One flag flipped by accident should not be able to publish anything.
+
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        description: Directory containing the Cargo workspace.
+        type: string
+        required: false
+        default: "."
+      dry-run:
+        description: >-
+          Run `cargo publish --dry-run`. Defaults to true — a caller that says nothing
+          cannot publish.
+        type: boolean
+        required: false
+        default: true
+      allow-real-publish:
+        description: >-
+          Second interlock. Must ALSO be true for a real publish to happen. Exists so that
+          `dry-run: false` alone — a plausible copy-paste slip — is inert.
+        type: boolean
+        required: false
+        default: false
+      publish-args:
+        description: >-
+          Extra args for cargo publish. `--workspace` handles inter-crate ordering itself,
+          which is why cargo-release/release-plz are not used here: cocogitto already owns
+          the version number and two tools must not both own it (PLAN.md §5.3).
+        type: string
+        required: false
+        default: --workspace
+      auth:
+        description: >-
+          `trusted` uses crates.io Trusted Publishing (OIDC, no stored secret) — matching
+          the direction these repos already took when the HOMEBREW_TAP_TOKEN PAT was
+          retired. `token` falls back to the CARGO_REGISTRY_TOKEN secret. `none` is for
+          dry runs, which need no credentials at all.
+        type: string
+        required: false
+        default: none
+      toolchain:
+        description: >-
+          Toolchain used to publish. Latest stable, independent of each crate's
+          `rust-version` MSRV, since `--workspace` publish ordering needs a recent cargo.
+        type: string
+        required: false
+        default: stable
+      runs-on:
+        type: string
+        required: false
+        default: ubuntu-latest
+    secrets:
+      CARGO_REGISTRY_TOKEN:
+        description: "Only used when `auth: token`. Prefer `auth: trusted`."
+        required: false
+
+permissions:
+  contents: read
+  # Required for Trusted Publishing's OIDC token exchange.
+  id-token: write
+
+jobs:
+  publish:
+    name: ${{ inputs.dry-run && 'Dry-run publish' || 'Publish' }}
+    runs-on: ${{ inputs.runs-on }}
+    steps:
+      - name: Resolve and announce the publish mode
+        id: mode
+        env:
+          DRY_RUN: ${{ inputs.dry-run }}
+          ALLOW: ${{ inputs.allow-real-publish }}
+          AUTH: ${{ inputs.auth }}
+        run: |
+          set -euo pipefail
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "real=false" >>"$GITHUB_OUTPUT"
+            echo "::notice::Dry run — nothing will be published."
+            exit 0
+          fi
+          if [ "$ALLOW" != "true" ]; then
+            echo "::error::publish-crates: \`dry-run: false\` requires \`allow-real-publish: true\`." \
+                 "Publishing to crates.io cannot be undone: a yanked version stays visible and the" \
+                 "crate name is claimed permanently. Set both inputs deliberately." >&2
+            exit 1
+          fi
+          if [ "$AUTH" = "none" ]; then
+            echo "::error::publish-crates: a real publish needs \`auth: trusted\` or \`auth: token\`." >&2
+            exit 1
+          fi
+          echo "real=true" >>"$GITHUB_OUTPUT"
+          echo "::warning::Real publish to crates.io — this is irreversible."
+
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: ${{ inputs.toolchain }}
+          rustflags: ""
+
+      # Exchanges the workflow's OIDC token for a short-lived, scoped publish token, so no
+      # long-lived CARGO_REGISTRY_TOKEN has to exist anywhere. Setup is per-crate on
+      # crates.io and cannot be Terraform-managed today — see docs/consuming.md.
+      - name: Authenticate via Trusted Publishing
+        if: steps.mode.outputs.real == 'true' && inputs.auth == 'trusted'
+        uses: rust-lang/crates-io-auth-action@v1
+        id: trusted-auth
+
+      - name: Publish
+        working-directory: ${{ inputs.working-directory }}
+        env:
+          REAL: ${{ steps.mode.outputs.real }}
+          ARGS: ${{ inputs.publish-args }}
+          CARGO_REGISTRY_TOKEN: ${{ steps.trusted-auth.outputs.token || secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          set -euo pipefail
+          # $ARGS is a caller-supplied flag list and must word-split; quoting it would
+          # pass "--workspace --allow-dirty" to cargo as one argument.
+          # shellcheck disable=SC2086
+          if [ "$REAL" = "true" ]; then
+            cargo publish $ARGS
+          else
+            # --dry-run packages and verifies every crate without contacting the registry's
+            # publish endpoint. Note it requires each internal path dependency to carry a
+            # `version` (see docs/consuming.md); a workspace of pure path deps fails here,
+            # which is the check doing its job.
+            cargo publish $ARGS --dry-run
+          fi
