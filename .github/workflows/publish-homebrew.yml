@@ -1,0 +1,145 @@
+name: Publish homebrew formula
+
+# Shared implementation behind each consumer's own `publish-homebrew.yml`.
+#
+# cargo-dist's `publish-jobs = ["./publish-homebrew"]` resolves a LOCAL workflow path, so
+# the file must still exist in the consumer repo (PLAN.md §9.1) — but it shrinks to a thin
+# wrapper that calls this. That preserves the "survives `dist generate`" property, and uses
+# 2 of the 4 permitted reusable-workflow nesting levels.
+#
+# Consolidated from ops and oxydraw (~90% identical). The divergence resolved: ops still
+# committed as `"axo bot" <admin+bot@axo.dev>`, cargo-dist's vendor default. Both now use
+# the App bot identity.
+
+on:
+  workflow_call:
+    inputs:
+      plan:
+        description: cargo-dist's release plan JSON, passed through from release.yml.
+        type: string
+        required: true
+      tap-repository:
+        description: >-
+          Tap to publish into, as `owner/name`. Overridable so the testbed can exercise
+          this path without polluting the production tap (PLAN.md §7.3).
+        type: string
+        required: false
+        default: rsvalerio/homebrew-tap
+      dry-run:
+        description: Render and lint the formula, then stop before committing or pushing.
+        type: boolean
+        required: false
+        default: false
+      owner:
+        type: string
+        required: false
+        default: rsvalerio
+      app-client-id:
+        type: string
+        required: false
+        default: ""
+      forge-ref:
+        type: string
+        required: false
+        default: v1
+      runs-on:
+        type: string
+        required: false
+        default: ubuntu-22.04
+    secrets:
+      GH_APP_PRIVATE_KEY:
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  publish-homebrew-formula:
+    name: Publish formula
+    runs-on: ${{ inputs.runs-on }}
+    env:
+      PLAN: ${{ inputs.plan }}
+      DRY_RUN: ${{ inputs.dry-run }}
+    steps:
+      - name: Check out forge
+        uses: actions/checkout@v6
+        with:
+          repository: rsvalerio/forge
+          ref: ${{ inputs.forge-ref }}
+          path: .forge
+          persist-credentials: false
+
+      - name: Derive tap repository name
+        id: tap
+        env:
+          TAP: ${{ inputs.tap-repository }}
+        run: echo "name=${TAP#*/}" >>"$GITHUB_OUTPUT"
+
+      - name: Mint tap token (GitHub App)
+        id: tap-token
+        uses: ./.forge/actions/mint-app-token
+        with:
+          client-id: ${{ inputs.app-client-id || vars.GH_APP_CLIENT_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          owner: ${{ inputs.owner }}
+          repositories: ${{ steps.tap.outputs.name }}
+
+      - name: Check out the tap
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ inputs.tap-repository }}
+          token: ${{ steps.tap-token.outputs.token }}
+          persist-credentials: true
+          path: tap
+
+      - name: Fetch homebrew formulae
+        uses: actions/download-artifact@v7
+        with:
+          pattern: artifacts-*
+          path: tap/Formula/
+          merge-multiple: true
+
+      - name: Configure App bot identity
+        uses: ./.forge/actions/app-bot-identity
+        with:
+          token: ${{ steps.tap-token.outputs.token }}
+          app-slug: ${{ steps.tap-token.outputs.app-slug }}
+          working-directory: tap
+
+      # The formula filename need not match the app name, so find the releases that
+      # produced a *.rb artifact and publish under whatever filename they used.
+      - name: Commit formula files
+        working-directory: tap
+        run: |
+          set -euo pipefail
+          export PATH="/home/linuxbrew/.linuxbrew/bin:$PATH"
+
+          found=false
+          for release in $(jq --compact-output '.releases[] | select([.artifacts[] | endswith(".rb")] | any)' <<<"$PLAN"); do
+            found=true
+            filename=$(jq --raw-output '.artifacts[] | select(endswith(".rb"))' <<<"$release")
+            name="${filename%.rb}"
+            version=$(jq --raw-output .app_version <<<"$release")
+
+            brew update
+            # Do not reformat user-provided data such as the app description and homepage.
+            brew style --except-cops FormulaAudit/Homepage,FormulaAudit/Desc,FormulaAuditStrict \
+              --fix "Formula/${filename}" || true
+
+            git add "Formula/${filename}"
+            git commit -m "${name} ${version}"
+          done
+
+          if [ "$found" = false ]; then
+            echo "No release in the plan produced a .rb artifact; nothing to publish."
+            exit 0
+          fi
+
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "::notice::dry-run: formula rendered and committed locally, not pushed."
+            git --no-pager log --oneline -n 5
+            git --no-pager show --stat HEAD
+            exit 0
+          fi
+
+          git push
