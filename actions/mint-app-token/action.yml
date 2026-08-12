@@ -14,8 +14,11 @@ inputs:
   repositories:
     description: >-
       Comma- or newline-separated repository names (not owner/name) the token may act on.
-      Required — there is deliberately no "all repositories" default. Use
-      `${{ github.event.repository.name }}` for own-repo tokens.
+      Required — there is deliberately no "all repositories" default. Pass the
+      github.event.repository.name expression for own-repo tokens.
+      Keep expression delimiters out of this text: a description permits no expression
+      context, so the template validator reads the example as code and rejects the whole
+      manifest with "Unrecognized named-value: 'github'" before any step runs.
     required: true
   private-key:
     description: The App's private key, e.g. secrets.GH_APP_PRIVATE_KEY.
