@@ -35,27 +35,42 @@ done
 headline="$(git log -1 --format=%s HEAD)"
 body="$(git log -1 --format=%b HEAD)"
 
-# base64 -w0 is GNU-only; pipe through tr so this also runs on macOS during local testing.
-b64() { base64 <"$1" | tr -d '\n'; }
+# File contents never travel through argv. Linux caps a SINGLE argument at
+# MAX_ARG_STRLEN — 32 pages, 128 KiB — independently of the much larger total ARG_MAX,
+# and base64 inflates by 4/3. ops's CHANGELOG.md is 295 KiB encoded, so passing it as
+# `--arg c "$(b64 "$path")"` died with "jq: Argument list too long" (exit 126). Building
+# the array up in a shell variable had the same defect one level up: the final
+# `--argjson additions` carried every file's payload at once.
+#
+# So each record is written as one line of JSON to a temp file, contents included via
+# --rawfile, and the payload assembled with --slurpfile. Nothing large is ever an
+# argument. --slurpfile on an empty file yields [], which is what the mutation wants for
+# "no deletions".
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+additions="$work/additions.jsonl"
+deletions="$work/deletions.jsonl"
+: >"$additions"
+: >"$deletions"
 
-additions='[]'
-deletions='[]'
 # -z keeps paths intact regardless of spaces, tabs or newlines in filenames. With
 # --no-renames every record is a plain "<status>\0<path>\0" pair.
 while IFS= read -r -d '' status && IFS= read -r -d '' path; do
   case "$status" in
     D)
-      deletions="$(jq -c --arg p "$path" '. + [{path: $p}]' <<<"$deletions")"
+      jq -nc --arg p "$path" '{path: $p}' >>"$deletions"
       ;;
     *)
       # A and M both resolve to "this path now has this content".
-      additions="$(jq -c --arg p "$path" --arg c "$(b64 "$path")" \
-        '. + [{path: $p, contents: $c}]' <<<"$additions")"
+      # base64 -w0 is GNU-only; pipe through tr so this also runs on macOS during
+      # local testing. No trailing newline, so --rawfile reads the blob verbatim.
+      base64 <"$path" | tr -d '\n' >"$work/blob"
+      jq -nc --arg p "$path" --rawfile c "$work/blob" '{path: $p, contents: $c}' >>"$additions"
       ;;
   esac
 done < <(git diff -z --name-status --no-renames "$base" HEAD)
 
-if [ "$additions" = '[]' ] && [ "$deletions" = '[]' ]; then
+if [ ! -s "$additions" ] && [ ! -s "$deletions" ]; then
   echo "signed-commit: no changes between $base and HEAD; nothing to commit" >&2
   exit 1
 fi
@@ -63,7 +78,7 @@ fi
 jq -nc \
   --arg repo "$repo" --arg branch "$branch" --arg base "$base" \
   --arg headline "$headline" --arg body "$body" \
-  --argjson additions "$additions" --argjson deletions "$deletions" \
+  --slurpfile additions "$additions" --slurpfile deletions "$deletions" \
   '{
     query: "mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid } } }",
     variables: {input: {
