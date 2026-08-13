@@ -73,7 +73,12 @@ adding a new workflow or action, or clarifying documentation.
 2. Tag `vX.Y.Z`.
 3. Repoint the moving major tag:
    ```bash
-   git tag -f v1 vX.Y.Z && git push -f origin v1
+   git tag -f -m "v1 -> vX.Y.Z" v1 'vX.Y.Z^{}' && git push -f origin v1
    ```
+   Both extras earn their keep. `^{}` peels the annotated release tag to the commit it
+   points at — without it you create a *tag object pointing at a tag object*, which git
+   warns about and which consumers resolve inconsistently. `-m` supplies the message that
+   `tag.gpgsign = true` makes mandatory; without it git drops you into `$EDITOR` mid-release.
+   Quote the `^{}` — zsh treats both characters as glob syntax.
 4. For a major bump, do **not** repoint `v1` — publish `v2` and migrate consumers one at a
    time, so a bad major cannot take every pipeline down at once.
