@@ -39,6 +39,20 @@ on:
         type: boolean
         required: false
         default: true
+      release-workflow:
+        description: >-
+          Workflow file to dispatch once the version tag exists, e.g. `release.yml`. It
+          must accept a `workflow_dispatch` input named `tag`, which is what dist
+          generates under `dispatch-releases = true`.
+
+          Empty (the default) dispatches nothing — correct for consumers whose release
+          is triggered by the tag push itself. Set it when `skip-ci` is on and the
+          release is tag-triggered, because those two cannot coexist: GitHub applies
+          `[skip ci]` per push event, a tag push is a push event, so the bump commit's
+          marker suppresses the release as well as CI.
+        type: string
+        required: false
+        default: ""
       owner:
         description: Repository owner, used for App token scoping.
         type: string
@@ -236,6 +250,26 @@ jobs:
           gh api "/repos/${REPOSITORY}/git/refs" \
             -f "ref=refs/tags/${TAG}" -f "sha=${SHA}" >/dev/null
           echo "tagged ${TAG} at ${SHA}"
+
+      # Ask for the release explicitly, because the tag push cannot. `--ref` is the
+      # branch rather than the tag: the branch always carries the newest workflow file,
+      # whereas dispatching against a tag whose release.yml predates `dispatch-releases`
+      # fails with "workflow does not have workflow_dispatch trigger". The `tag` input is
+      # what selects the code to build, and dist errors loudly if it disagrees with the
+      # version in the tree — so the branch having moved on shows up as a failure rather
+      # than a wrong release.
+      - name: Dispatch the release workflow
+        if: steps.cog.outputs.bumped == 'true' && inputs.signed && inputs.release-workflow != ''
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          REPOSITORY: ${{ github.repository }}
+          WORKFLOW: ${{ inputs.release-workflow }}
+          BRANCH: ${{ inputs.branch }}
+          TAG: ${{ steps.cog.outputs.tag }}
+        run: |
+          set -euo pipefail
+          gh workflow run "$WORKFLOW" --repo "$REPOSITORY" --ref "$BRANCH" -f "tag=$TAG"
+          echo "dispatched $WORKFLOW for $TAG" >>"$GITHUB_STEP_SUMMARY"
 
       - name: Push the bump unsigned
         id: unsigned

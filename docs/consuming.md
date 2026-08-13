@@ -71,6 +71,35 @@ jobs:
 Note the explicit `secrets:` block rather than `secrets: inherit` — inherit passes
 everything the caller holds, and this workflow needs exactly one secret (PLAN.md §9.3).
 
+### If your release is triggered by the tag push, you need `release-workflow`
+
+`skip-ci` and a tag-triggered release cannot both work. GitHub evaluates `[skip ci]`
+against the head commit of a **push event**, and a tag push is a push event — so the
+marker that stops the bump commit from re-running CI also stops the release that the
+version tag was supposed to trigger. The tag lands, and nothing builds.
+
+This is not hypothetical: it silently swallowed ops's `v0.36.0`.
+
+Pick one:
+
+- **Dispatch the release** (preferred). Set dist's `dispatch-releases = true`, run
+  `dist generate`, and point forge at the resulting workflow:
+
+  ```yaml
+      with:
+        branch: ${{ github.event.workflow_run.head_branch }}
+        release-workflow: release.yml
+  ```
+
+  `release.yml` then triggers on `workflow_dispatch` with a `tag` input, and the bump job
+  calls it once the tag exists. `[skip ci]` keeps doing its job for CI.
+
+- **Turn the marker off** with `skip-ci: false`. The tag push triggers the release as
+  before, at the cost of one redundant CI + Bump cycle per release — the bump commit
+  re-runs CI, Bump fires again, and cocogitto no-ops because there is nothing to release.
+
+Consumers with no tag-triggered release need neither, and the defaults are already right.
+
 ### Required cog.toml change
 
 Signed mode pushes the commit and the tag through the API, so cocogitto must **not** push:
