@@ -73,6 +73,15 @@ on:
         type: string
         required: false
         default: v1
+      major-tag:
+        description: >-
+          Moving major tag to repoint at each release, e.g. `v1`. Empty (the default)
+          leaves it alone — correct for consumers that do not publish one. forge itself
+          passes `v1`, which is what stops the tag its consumers pin from falling behind
+          a release again (that drift is what made `ops` pin an exact tag for a while).
+        type: string
+        required: false
+        default: ""
       working-directory:
         description: Directory to run `cog` in.
         type: string
@@ -250,6 +259,73 @@ jobs:
           gh api "/repos/${REPOSITORY}/git/refs" \
             -f "ref=refs/tags/${TAG}" -f "sha=${SHA}" >/dev/null
           echo "tagged ${TAG} at ${SHA}"
+
+      # Keep the moving major tag level with the release just cut. Doing this by hand is
+      # what let `v1` sit on v0.1.2 while v0.2.0 shipped: consumers pinning `@v1` — the
+      # convention versioning.md tells them to use — silently ran the older workflow, and
+      # `ops` worked around it with an exact pin. An unpinned consumer is only safe if the
+      # tag it pins moves on its own.
+      #
+      # Lightweight ref, deliberately: `git tag -f` produces a tag *object*, and pointing
+      # one tag object at another is what versioning.md's `^{}` peel exists to avoid. The
+      # API only ever creates lightweight refs here, so the shape cannot drift.
+      - name: Repoint the moving major tag
+        if: steps.cog.outputs.bumped == 'true' && inputs.signed && inputs.major-tag != ''
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          REPOSITORY: ${{ github.repository }}
+          MAJOR: ${{ inputs.major-tag }}
+          TAG: ${{ steps.cog.outputs.tag }}
+          SHA: ${{ steps.signed.outputs.sha }}
+        run: |
+          set -euo pipefail
+          # Never carry the moving tag UP across a major. versioning.md is explicit that a
+          # v2 release must not repoint `v1` — consumers migrate one at a time so a bad
+          # major cannot take every pipeline down at once. Automation that ignored that
+          # would do the one thing the policy forbids, silently, on the release where it
+          # matters most.
+          #
+          # The test is `released > moving`, not `released != moving`, because a moving
+          # tag legitimately runs ahead of the version line while a project is pre-1.0:
+          # forge publishes `v1` today while its own releases are 0.x, which is the whole
+          # point of a moving tag consumers can pin before the API is frozen. Equal (the
+          # v1.x case versioning.md describes) and below (the 0.x case forge is actually
+          # in) both repoint; only a release that has moved past the tag is refused.
+          released_major="${TAG#v}"
+          released_major="${released_major%%.*}"
+          moving_major="${MAJOR#v}"
+          moving_major="${moving_major%%.*}"
+          # `-gt` on a non-numeric operand aborts with "integer expression expected",
+          # which is a baffling way for a release to fail. Say what is actually wrong.
+          case "${released_major}:${moving_major}" in
+            *[!0-9:]* | :* | *: | *::*)
+              echo "::error::bump: cannot compare majors of tag '${TAG}' and major-tag" \
+                   "'${MAJOR}'. Both must look like vN.N.N / vN." >&2
+              exit 1
+              ;;
+          esac
+          if [ "$released_major" -gt "$moving_major" ]; then
+            echo "::notice::${TAG} is past ${MAJOR}; leaving ${MAJOR} where it is." \
+                 "Publish v${released_major} and migrate consumers deliberately."
+            echo "- moving tag: left in place (\`${TAG}\` is past \`${MAJOR}\`)" \
+              >>"$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          # PATCH with force moves an existing ref; POST creates it the first time. Try
+          # the move first and fall back, so the step is correct on a repo that has never
+          # published the tag as well as on every release after that.
+          if gh api -X PATCH "/repos/${REPOSITORY}/git/refs/tags/${MAJOR}" \
+               -f "sha=${SHA}" -F force=true >/dev/null 2>&1; then
+            echo "repointed ${MAJOR} at ${SHA}"
+          elif gh api "/repos/${REPOSITORY}/git/refs" \
+                 -f "ref=refs/tags/${MAJOR}" -f "sha=${SHA}" >/dev/null; then
+            echo "created ${MAJOR} at ${SHA}"
+          else
+            echo "::error::bump: could not point ${MAJOR} at ${SHA}." >&2
+            exit 1
+          fi
+          echo "- moving tag: \`${MAJOR}\` -> \`${SHA}\`" >>"$GITHUB_STEP_SUMMARY"
 
       # Ask for the release explicitly, because the tag push cannot. `--ref` is the
       # branch rather than the tag: the branch always carries the newest workflow file,

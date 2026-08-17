@@ -100,6 +100,32 @@ Pick one:
 
 Consumers with no tag-triggered release need neither, and the defaults are already right.
 
+### If you publish a moving major tag, you need `major-tag`
+
+Repos that ask their own consumers to pin a moving tag (`@v1`) must repoint it at every
+release, or that tag quietly becomes a pin to an old version. Hand it to the bump
+workflow instead of remembering:
+
+```yaml
+    with:
+      branch: ${{ github.event.workflow_run.head_branch }}
+      major-tag: v1
+```
+
+The tag is repointed as a **lightweight ref**, in the same job that created the version
+tag and immediately after it. Two behaviours worth knowing:
+
+- It creates the tag if it does not exist yet, so the first release with this input set
+  needs no manual bootstrap.
+- It **refuses to carry the tag past a major**. If the release just cut is `v2.0.0` and
+  `major-tag` is `v1`, the step logs a notice and leaves `v1` alone — publishing `v2` and
+  migrating consumers one at a time is a deliberate act, not a side effect of a release.
+  A release *below* the moving tag (a `0.x` line under an already-published `v1`) still
+  repoints, which is the case forge itself is in.
+
+Leave the input unset — the default — if you do not publish a moving tag. Most consumers
+do not: this is for repos that are themselves depended on by tag.
+
 ### Required cog.toml change
 
 Signed mode pushes the commit and the tag through the API, so cocogitto must **not** push:
