@@ -11,10 +11,30 @@ uses: rsvalerio/forge/.github/workflows/bump.yml@v1     # yes
 uses: rsvalerio/forge/.github/workflows/bump.yml@main   # no
 ```
 
-`v1` is a **moving major tag**: it is repointed at each `v1.x.y` release, so consumers get
-fixes without editing anything, and never get a breaking change silently. SHA-pin instead
-wherever the consuming repo already SHA-pins its other actions, for consistency with its
-existing posture.
+`v1` is a **moving major tag**: it is repointed at each release, so consumers get fixes
+without editing anything, and never get a breaking change silently. Note that forge's own
+version line is still `0.x` — `v1` is the tag consumers pin *now*, ahead of the version
+number catching up, which is the point of publishing one before the API is frozen. The
+release workflow repoints it automatically and refuses to carry it past a major (see
+[Cutting a release](#cutting-a-release)).
+
+### SHA-pinning takes two refs, not one
+
+SHA-pin instead wherever the consuming repo already SHA-pins its other actions — but a
+pin on the `uses:` line alone **is not a pin**:
+
+```yaml
+uses: rsvalerio/forge/.github/workflows/bump.yml@<sha>   # pins the workflow file
+with:
+  forge-ref: <same sha>                                  # ...and the actions it runs
+```
+
+The reusable workflows check forge out at `forge-ref` to load their composite actions
+(see below), and that input **defaults to `v1`**. Pinning only the `uses:` ref leaves
+`mint-app-token`, `app-bot-identity` and `signed-commit` floating on `v1` — which is
+exactly what happened in `ops`: it pinned `@v0.2.0` for weeks while running v0.1.2's
+actions, including on the job that receives `GH_APP_PRIVATE_KEY`. Set both refs, or
+neither.
 
 ## The one exception: forge-testbed floats on `main`
 
@@ -71,7 +91,17 @@ adding a new workflow or action, or clarifying documentation.
 
 1. Testbed green on `main`.
 2. Tag `vX.Y.Z`.
-3. Repoint the moving major tag:
+3. **The moving major tag repoints itself.** Callers of the shared `bump.yml` pass
+   `major-tag: v1` and the workflow points it at the release it just cut, as a
+   lightweight ref, in the same job that created the version tag.
+
+   This step used to be manual, and skipping it once is what put `v1` on `v0.1.2` while
+   `v0.2.0` shipped: every consumer following the `@v1` convention silently kept running
+   the older workflow, and `ops` worked around it with an exact pin that did not pin the
+   composite actions anyway. A convention that tells consumers not to edit anything only
+   holds if the tag they pin moves without anyone remembering to move it.
+
+   For a release cut by hand, the equivalent is:
    ```bash
    git tag -f -m "v1 -> vX.Y.Z" v1 'vX.Y.Z^{}' && git push -f origin v1
    ```
@@ -79,6 +109,10 @@ adding a new workflow or action, or clarifying documentation.
    points at — without it you create a *tag object pointing at a tag object*, which git
    warns about and which consumers resolve inconsistently. `-m` supplies the message that
    `tag.gpgsign = true` makes mandatory; without it git drops you into `$EDITOR` mid-release.
-   Quote the `^{}` — zsh treats both characters as glob syntax.
+   Quote the `^{}` — zsh treats both characters as glob syntax. The workflow sidesteps all
+   of this by creating a lightweight ref through the API, which cannot nest.
 4. For a major bump, do **not** repoint `v1` — publish `v2` and migrate consumers one at a
-   time, so a bad major cannot take every pipeline down at once.
+   time, so a bad major cannot take every pipeline down at once. The workflow enforces
+   this: it compares the major of the tag it just cut against `major-tag` and skips the
+   repoint with a notice when the release has moved past it. A release *below* the moving
+   tag still repoints, which is the `0.x` case forge itself is in today.
