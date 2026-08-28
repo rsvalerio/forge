@@ -67,6 +67,20 @@ on:
         required: false
         default: true
 
+# The ceiling every consumer runs under, as in the other five workflows here. A
+# reusable workflow that declares none inherits whatever the caller granted —
+# and a caller that declares none in turn inherits the repository default, which
+# is how `dbsec` came to run these six jobs on a default token. Declared here,
+# the cap holds no matter what the caller passes: a called workflow's
+# permissions can only narrow the caller's, never widen them.
+#
+# `contents: read` is the whole need. The jobs below check out, install a
+# toolchain, and pull release binaries via `taiki-e/install-action`; sccache
+# reaches the Actions cache through ACTIONS_RUNTIME_TOKEN, not GITHUB_TOKEN.
+# Nothing here writes, takes a secret, or loads a composite action.
+permissions:
+  contents: read
+
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
