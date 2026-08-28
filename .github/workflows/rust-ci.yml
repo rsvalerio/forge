@@ -67,7 +67,7 @@ on:
         required: false
         default: true
 
-# The floor every consumer runs under, as in the other five workflows here. A
+# The ceiling every consumer runs under, as in the other five workflows here. A
 # reusable workflow that declares none inherits whatever the caller granted —
 # and a caller that declares none in turn inherits the repository default, which
 # is how `dbsec` came to run these six jobs on a default token. Declared here,
