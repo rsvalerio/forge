@@ -82,6 +82,27 @@ on:
         type: string
         required: false
         default: ""
+      notify-on-failure:
+        description: >-
+          On failure, open an issue in this repository (or comment on the one already
+          open) naming the step that failed and linking the run.
+
+          On by default, because a failing bump is otherwise invisible: it triggers on
+          `workflow_run`, so it runs on no pull request and can be a required check on
+          none — nothing red appears in front of any change, and the only symptom is a
+          release that never happens. Turn it off in consumers that already watch their
+          Actions. Requires the App to hold `issues: write`.
+        type: boolean
+        required: false
+        default: true
+      notify-label:
+        description: >-
+          Label the failure issue carries. It is also how the issue is found again, so
+          the workflow comments on one open issue rather than opening a new one per
+          failed run, and closes it on the next successful bump. Created if missing.
+        type: string
+        required: false
+        default: bump-failure
       working-directory:
         description: Directory to run `cog` in.
         type: string
@@ -379,3 +400,142 @@ jobs:
             echo "- commit: \`${SHA}\`"
             echo "- signed: \`${SIGNED}\`"
           } >>"$GITHUB_STEP_SUMMARY"
+
+      # A bump that got this far is healthy, including the no-op one where there was
+      # nothing to release — so retire the issue the notify job opens. Done here, in the
+      # job that already holds a token, rather than as a second job: this is one list call
+      # on every push to the default branch, and a job would mean another checkout and
+      # another token mint for it.
+      #
+      # Never fail the release over this. The App may hold no `issues: write` grant, which
+      # is a notification problem and not a reason to redden a bump that worked.
+      - name: Close any open bump-failure issue
+        if: inputs.notify-on-failure
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_REPO: ${{ github.repository }}
+          LABEL: ${{ inputs.notify-label }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          if ! open_issues="$(gh issue list --label "$LABEL" --state open \
+                                --json number --jq '.[].number')"; then
+            echo "::warning::bump: could not list '$LABEL' issues; leaving any open one" \
+                 "alone. Grant the App 'Issues: Write', or set notify-on-failure: false."
+            exit 0
+          fi
+          while read -r n; do
+            [ -n "$n" ] || continue
+            gh issue close "$n" --reason completed \
+              --comment "Bump succeeded again in [this run](${RUN_URL}). Closing."
+            echo "closed #$n"
+          done <<<"$open_issues"
+
+  # Report a failed bump somewhere a human will see it. Bump triggers on `workflow_run`
+  # after CI on the default branch: it runs on no pull request and can be a required check
+  # on none, so nothing red ever appears in front of a change and the only symptom is a
+  # release that silently stops happening. `dbsec` lost nine days and 293 commits that way.
+  #
+  # GitHub's own failure email goes to the actor and did not help there, so this reports to
+  # something that stays put: one issue in the repository, reused across consecutive
+  # failures and closed by the next success. Opt out with `notify-on-failure: false`.
+  notify:
+    name: Report bump failure
+    needs: bump
+    # `failure()` and not `always()`: a cancelled run is somebody's decision, not a fault.
+    if: failure() && inputs.notify-on-failure
+    runs-on: ${{ inputs.runs-on }}
+    steps:
+      # Only forge is checked out — this job touches the API, never the tree.
+      - name: Check out forge
+        uses: actions/checkout@v6
+        with:
+          repository: rsvalerio/forge
+          ref: ${{ inputs.forge-ref }}
+          path: .forge
+          persist-credentials: false
+
+      # A fresh token: the bump job's may itself be what failed to mint, and a job output
+      # cannot carry a secret anyway.
+      - name: Mint notification token (GitHub App)
+        id: app-token
+        uses: ./.forge/actions/mint-app-token
+        with:
+          client-id: ${{ inputs.app-client-id || vars.GH_APP_CLIENT_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          owner: ${{ inputs.owner }}
+          repositories: ${{ github.event.repository.name }}
+
+      - name: Open or update the failure issue
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_REPO: ${{ github.repository }}
+          LABEL: ${{ inputs.notify-label }}
+          BRANCH: ${{ inputs.branch }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          DOCS: https://github.com/rsvalerio/forge/blob/main/docs/consuming.md#prerequisites
+        run: |
+          set -euo pipefail
+
+          # Name the step, not just the run. Which step failed is the whole diagnosis: a
+          # failure at `Push the bump as a signed commit` is the ruleset-bypass gap
+          # consuming.md describes, and reads nothing like a failure at `Run cog bump`.
+          # shellcheck disable=SC2016  # `$j` is jq's variable, not the shell's
+          failed="$(
+            gh api "/repos/${GH_REPO}/actions/runs/${GITHUB_RUN_ID}/jobs" --paginate \
+              --jq '.jobs[] | select(.conclusion == "failure") | . as $j
+                    | $j.steps[] | select(.conclusion == "failure")
+                    | "- `\($j.name)` -> `\(.name)`"' \
+            || true
+          )"
+          [ -n "$failed" ] || failed="- (the run's steps could not be read)"
+
+          # printf rather than a heredoc, so the issue body's markdown code spans stay
+          # literal: an unquoted heredoc would run every backtick as a command, and a
+          # quoted one would stop `$BRANCH` and the rest from interpolating.
+          # shellcheck disable=SC2016  # the backticks below are markdown, not substitution
+          {
+            printf '`Bump` failed on `%s`, so **nothing was released**.\n\n' "$BRANCH"
+            printf 'Failed step:\n\n%s\n\n' "$failed"
+            printf 'Run: %s\n\n---\n\n' "$RUN_URL"
+            printf 'Nothing else will surface this. `Bump` triggers on `workflow_run` after\n'
+            printf 'CI, so it runs on no pull request and can be a required check on none —\n'
+            printf 'the branch keeps merging green while the version stays where it is.\n\n'
+            printf 'Worth checking, in this order:\n\n'
+            printf -- '- **`Push the bump as a signed commit`, with `Repository rule violations'
+            printf    ' found`** — the App is not in the bypass list of a ruleset on `%s`.' "$BRANCH"
+            printf    ' See [consuming.md](%s).\n' "$DOCS"
+            printf -- '- **`Verify cog.toml is compatible with signed mode`** — `cog.toml`'
+            printf    ' still has `git push` post_bump_hooks; remove them, or pass'
+            printf    ' `signed: false`.\n'
+            printf -- '- **`Mint bump token`** — `GH_APP_PRIVATE_KEY` or'
+            printf    ' `vars.GH_APP_CLIENT_ID` is unset, or not visible to this workflow.\n\n'
+            printf 'This issue is reused for further failures and closed by the next\n'
+            printf 'successful bump. Silence it with `notify-on-failure: false`.\n'
+          } >"${RUNNER_TEMP}/bump-failure.md"
+
+          # One issue, not one per failed run: find the open one by label and comment on it.
+          existing="$(gh issue list --label "$LABEL" --state open \
+                        --json number --jq '.[0].number // empty' || true)"
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body-file "${RUNNER_TEMP}/bump-failure.md"
+            echo "commented on #$existing" >>"$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          # `gh issue create --label` rejects a label the repository does not have, and a
+          # consumer adopting this has never had one. Creating it is idempotent enough to
+          # ignore the second time.
+          gh label create "$LABEL" --color B60205 \
+            --description "A Bump run failed and no release was cut" >/dev/null 2>&1 || true
+
+          if ! url="$(gh issue create \
+                        --title "Bump failed on ${BRANCH} — no release was cut" \
+                        --label "$LABEL" \
+                        --body-file "${RUNNER_TEMP}/bump-failure.md")"; then
+            echo "::error::bump: could not open the failure issue. Grant the App" \
+                 "'Issues: Write' on this repository, or pass notify-on-failure: false." >&2
+            exit 1
+          fi
+          echo "opened $url" >>"$GITHUB_STEP_SUMMARY"
