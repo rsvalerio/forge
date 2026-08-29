@@ -416,21 +416,35 @@ jobs:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           GH_REPO: ${{ github.repository }}
           LABEL: ${{ inputs.notify-label }}
+          BRANCH: ${{ inputs.branch }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
-          if ! open_issues="$(gh issue list --label "$LABEL" --state open \
-                                --json number --jq '.[].number')"; then
+          # The label is not an identity. It says nothing about which branch the issue is
+          # for, and anyone can put it on an unrelated issue — either way this step would
+          # close something it does not own. Match the marker the notify job writes into
+          # the body instead, and leave the label as what it is useful for: keeping the
+          # listing small, and giving humans something to search on.
+          marker="<!-- forge:bump-failure branch=${BRANCH} -->"
+          # --limit, because the default page is 30 and the marked issue may be the 31st.
+          if ! issues="$(gh issue list --label "$LABEL" --state open --limit 100 \
+                           --json number,body)"; then
             echo "::warning::bump: could not list '$LABEL' issues; leaving any open one" \
                  "alone. Grant the App 'Issues: Write', or set notify-on-failure: false."
             exit 0
           fi
+          # jq through a pipe rather than gh's --jq: only this form takes --arg, and a
+          # branch name interpolated straight into a jq program is a quoting accident
+          # waiting to happen.
+          # shellcheck disable=SC2016  # `$m` is jq's argument, not the shell's
+          ours="$(printf '%s' "$issues" |
+                    jq -r --arg m "$marker" '.[] | select(.body | contains($m)) | .number')"
           while read -r n; do
             [ -n "$n" ] || continue
             gh issue close "$n" --reason completed \
               --comment "Bump succeeded again in [this run](${RUN_URL}). Closing."
             echo "closed #$n"
-          done <<<"$open_issues"
+          done <<<"$ours"
 
   # Report a failed bump somewhere a human will see it. Bump triggers on `workflow_run`
   # after CI on the default branch: it runs on no pull request and can be a required check
@@ -491,6 +505,10 @@ jobs:
           )"
           [ -n "$failed" ] || failed="- (the run's steps could not be read)"
 
+          # How both this job and the close-on-success step recognise an issue as theirs,
+          # and as this branch's. An HTML comment, so it is invisible once rendered.
+          marker="<!-- forge:bump-failure branch=${BRANCH} -->"
+
           # printf rather than a heredoc, so the issue body's markdown code spans stay
           # literal: an unquoted heredoc would run every backtick as a command, and a
           # quoted one would stop `$BRANCH` and the rest from interpolating.
@@ -513,11 +531,21 @@ jobs:
             printf    ' `vars.GH_APP_CLIENT_ID` is unset, or not visible to this workflow.\n\n'
             printf 'This issue is reused for further failures and closed by the next\n'
             printf 'successful bump. Silence it with `notify-on-failure: false`.\n'
+            printf '\n%s\n' "$marker"
           } >"${RUNNER_TEMP}/bump-failure.md"
 
-          # One issue, not one per failed run: find the open one by label and comment on it.
-          existing="$(gh issue list --label "$LABEL" --state open \
-                        --json number --jq '.[0].number // empty' || true)"
+          # One issue, not one per failed run — and specifically the one this workflow
+          # opened for this branch. The label narrows the listing; the marker is what
+          # establishes ownership, so a second branch gets its own issue and an issue
+          # somebody labelled by hand is left alone.
+          existing=""
+          if issues="$(gh issue list --label "$LABEL" --state open --limit 100 \
+                         --json number,body)"; then
+            # shellcheck disable=SC2016  # `$m` is jq's argument, not the shell's
+            existing="$(printf '%s' "$issues" |
+                          jq -r --arg m "$marker" \
+                            '[.[] | select(.body | contains($m)) | .number] | .[0] // empty')"
+          fi
           if [ -n "$existing" ]; then
             gh issue comment "$existing" --body-file "${RUNNER_TEMP}/bump-failure.md"
             echo "commented on #$existing" >>"$GITHUB_STEP_SUMMARY"
