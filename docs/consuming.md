@@ -175,6 +175,38 @@ own `.id` is a different number and will not match anything):
 gh api /repos/OWNER/REPO/installation --jq .app_id
 ```
 
+### A failed bump reports itself
+
+Bump is the one workflow nothing watches. It triggers on `workflow_run` after CI on the
+default branch, so it runs on no pull request and can be a required check on none — the
+branch keeps merging green while the version quietly stops moving, and the only way to
+notice is to open the Actions tab. GitHub's default failure email goes to the actor and,
+in practice, did not help: `dbsec` went nine days that way.
+
+So on failure the workflow opens an issue in the repository — the failed step by name, a
+link to the run, and the three causes worth checking first. Further failures comment on
+that same issue rather than opening another, and the next successful bump closes it.
+
+It finds that issue again by a hidden marker it writes into the body, keyed on the branch,
+not by the label alone. So bumping two branches gives each its own issue, and an issue you
+label by hand is never closed or commented on by the workflow.
+
+This needs the App to hold **Issues: Write**. Without that grant the notify job fails with
+an explanation; the bump itself is never failed over a notification, so the close-on-
+success step only warns.
+
+Two inputs, both with working defaults:
+
+```yaml
+    with:
+      branch: ${{ github.event.workflow_run.head_branch }}
+      notify-on-failure: false   # default true
+      notify-label: bump-failure # created if missing; narrows the search, and is
+                                 # there for humans to filter on
+```
+
+Turn it off in consumers that already watch their Actions.
+
 ### If your release is triggered by the tag push, you need `release-workflow`
 
 `skip-ci` and a tag-triggered release cannot both work. GitHub evaluates `[skip ci]`
