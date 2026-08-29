@@ -130,11 +130,18 @@ Two of the usual worries do not apply here:
 - The content is machine-generated: a CHANGELOG entry and a version number, written by
   cocogitto from commits that were already reviewed.
 
-One does. The bump commit itself is **never CI-validated** — the run that triggered the
-bump tested its parent, and the `skip-ci` input (on by default) passes `--skip-ci` to
-`cog bump`, which writes `[skip ci]` into the commit message, and that marker is what
-stops CI running on the bump commit. If that matters for your repository, validate it out
-of band rather than assuming the green tick upstream covers it.
+One does. **Nothing has tested the bump commit at the moment it lands** — the run that
+triggered the bump tested its parent, and the push happens before any check on the new
+commit could run. What follows depends on `skip-ci`:
+
+- **`skip-ci: true` (the default)** — it is never tested at all. The input passes
+  `--skip-ci` to `cog bump`, which writes `[skip ci]` into the commit message, and that
+  marker is what stops CI running on it.
+- **`skip-ci: false`** — CI runs on the bump commit afterwards, so a problem surfaces,
+  but after the fact rather than in front of the push.
+
+Either way the ruleset is not what is holding the line here. If that matters for your
+repository, validate out of band rather than assuming the green tick upstream covers it.
 
 Where rulesets are Terraform-managed, add a `bypass_actors` block rather than clicking it
 into the UI; the API/UI route drifts and the next `apply` reverts it:
