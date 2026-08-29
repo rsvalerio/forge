@@ -131,9 +131,10 @@ Two of the usual worries do not apply here:
   cocogitto from commits that were already reviewed.
 
 One does. The bump commit itself is **never CI-validated** — the run that triggered the
-bump tested its parent, and `skip-ci` deliberately stops the bump commit from re-running
-CI. If that matters for your repository, validate it out of band rather than assuming the
-green tick upstream covers it.
+bump tested its parent, and the `skip-ci` input (on by default) passes `--skip-ci` to
+`cog bump`, which writes `[skip ci]` into the commit message, and that marker is what
+stops CI running on the bump commit. If that matters for your repository, validate it out
+of band rather than assuming the green tick upstream covers it.
 
 Where rulesets are Terraform-managed, add a `bypass_actors` block rather than clicking it
 into the UI; the API/UI route drifts and the next `apply` reverts it:
@@ -153,9 +154,12 @@ resource "github_repository_ruleset" "main_protection" {
 Repeat the block on each ruleset that would block the push; one grant does not carry to
 the others.
 
-`bypass_mode = "always"` is required. The other mode, `pull_request`, only grants the
-bypass to a pull request the actor opened — and the whole difficulty here is that the
-bump has no pull request.
+`bypass_mode = "always"` is the mode to use. `pull_request` will not do: it grants the
+bypass only within a pull request the actor opened, and the whole difficulty here is that
+the bump has no pull request. `exempt`, where your GitHub and provider versions offer it,
+also unblocks the push — it skips evaluating the ruleset for that actor entirely — but
+prefer `always`: it still evaluates and records the bypass, and that audit entry is what
+makes an automated direct push to the default branch reviewable after the fact.
 
 `actor_id` is the **App id**, which the installation endpoint reports (the installation's
 own `.id` is a different number and will not match anything):
