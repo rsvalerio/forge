@@ -71,6 +71,110 @@ jobs:
 Note the explicit `secrets:` block rather than `secrets: inherit` — inherit passes
 everything the caller holds, and this workflow needs exactly one secret (PLAN.md §9.3).
 
+### Prerequisites
+
+Three things must be true before the first bump can push, and only the first two are
+obvious:
+
+1. The **App is installed** on the repository (`my-cloud-ci`, or whichever App the
+   private key belongs to), with `contents: write` — it writes the bump commit and the
+   version tag.
+2. `secrets.GH_APP_PRIVATE_KEY` and `vars.GH_APP_CLIENT_ID` are set on the repository (or
+   inherited from the organisation, and *visible* to this workflow).
+3. The **App bypasses every ruleset on the target branch that would block a direct
+   push**. The bump is a direct push to `main` by design — there is no PR to merge it
+   through — so a `pull_request` rule stops it, and so does anything else evaluated on
+   the push, such as required status checks. Bypass is granted per ruleset: an App
+   listed on one ruleset is still subject to every other ruleset the branch has.
+
+#### The ruleset bypass
+
+Without the bypass, every Bump fails at `Push the bump as a signed commit`. This is
+`dbsec`'s failure verbatim; the first two lines are what to search for, and the last
+reflects that repository's own check count:
+
+```text
+gh: Repository rule violations found
+Changes must be made through a pull request.
+9 of 9 required status checks are expected.
+```
+
+Nothing about that error says "ruleset", and three things conspire to make it read like
+something else:
+
+- **It looks like a token problem.** Minting succeeds and the token gets as far as
+  ruleset evaluation, so the failure lands on the push. A grant the token genuinely
+  lacked fails on the same call but says something else — `Resource not accessible by
+  integration` — so the wording, not the timing, is what tells the two apart.
+- **`cog bump --auto` is green.** Version computation, the `cog.toml` check and token
+  minting all succeed; only the last step fails, so the run looks nearly working.
+- **Nobody is watching.** Bump runs on `workflow_run` after CI on the default branch, so
+  it is attached to no pull request and can be a required check on none. Nothing red
+  appears in front of any change. The only symptom is a release that never happens.
+
+`dbsec` adopted `bump.yml`, added a `main-protection` ruleset without the bypass, and
+went nine days and 293 commits with `Cargo.toml` frozen at `0.6.0` before anyone opened
+the Actions tab.
+
+Bypass is not free, and it is worth knowing exactly what it gives up. It applies to
+**every rule in the ruleset it is granted on**, not only the one blocking the push — so
+put in that ruleset the rules the bump must be allowed past (`pull_request`, required
+status checks) and keep anything that must hold for the App in a separate ruleset it is
+not listed on.
+
+Two of the usual worries do not apply here:
+
+- `required_signatures` loses nothing. The commit is created through
+  `createCommitOnBranch`, so GitHub signs it and it lands **Verified** — a stricter
+  result than the rule asks for.
+- The content is machine-generated: a CHANGELOG entry and a version number, written by
+  cocogitto from commits that were already reviewed.
+
+One does. **Nothing has tested the bump commit at the moment it lands** — the run that
+triggered the bump tested its parent, and the push happens before any check on the new
+commit could run. What follows depends on `skip-ci`:
+
+- **`skip-ci: true` (the default)** — it is never tested at all. The input passes
+  `--skip-ci` to `cog bump`, which writes `[skip ci]` into the commit message, and that
+  marker is what stops CI running on it.
+- **`skip-ci: false`** — CI runs on the bump commit afterwards, so a problem surfaces,
+  but after the fact rather than in front of the push.
+
+Either way the ruleset is not what is holding the line here. If that matters for your
+repository, validate out of band rather than assuming the green tick upstream covers it.
+
+Where rulesets are Terraform-managed, add a `bypass_actors` block rather than clicking it
+into the UI; the API/UI route drifts and the next `apply` reverts it:
+
+```hcl
+resource "github_repository_ruleset" "main_protection" {
+  # ...
+
+  bypass_actors {
+    actor_id    = 1234567 # the App's id, not the installation id
+    actor_type  = "Integration"
+    bypass_mode = "always"
+  }
+}
+```
+
+Repeat the block on each ruleset that would block the push; one grant does not carry to
+the others.
+
+`bypass_mode = "always"` is the mode to use. `pull_request` will not do: it grants the
+bypass only within a pull request the actor opened, and the whole difficulty here is that
+the bump has no pull request. `exempt`, where your GitHub and provider versions offer it,
+also unblocks the push — it skips evaluating the ruleset for that actor entirely — but
+prefer `always`: it still evaluates and records the bypass, and that audit entry is what
+makes an automated direct push to the default branch reviewable after the fact.
+
+`actor_id` is the **App id**, which the installation endpoint reports (the installation's
+own `.id` is a different number and will not match anything):
+
+```shell
+gh api /repos/OWNER/REPO/installation --jq .app_id
+```
+
 ### If your release is triggered by the tag push, you need `release-workflow`
 
 `skip-ci` and a tag-triggered release cannot both work. GitHub evaluates `[skip ci]`
