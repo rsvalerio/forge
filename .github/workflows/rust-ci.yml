@@ -66,6 +66,18 @@ on:
         type: boolean
         required: false
         default: true
+      use-sccache:
+        description: >-
+          Compile through sccache, cached in the Actions cache. Turn it off on a
+          runner whose provider accelerates the Actions cache but not sccache's
+          own traffic to it -- Blacksmith documents exactly that exception, so a
+          job there reaches across to GitHub's cache while every other step uses
+          the colocated one. The jobs then cache `target/` with
+          `Swatinem/rust-cache` instead, which is an `actions/cache` consumer
+          and so is accelerated like the rest.
+        type: boolean
+        required: false
+        default: true
 
 # The ceiling every consumer runs under, as in the other five workflows here. A
 # reusable workflow that declares none inherits whatever the caller granted —
@@ -84,7 +96,10 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
-  RUSTC_WRAPPER: sccache
+  # Empty rather than absent when sccache is off: `RUSTC_WRAPPER: ""` is what
+  # the deps job already uses to opt out, and cargo treats an empty value as no
+  # wrapper.
+  RUSTC_WRAPPER: ${{ inputs.use-sccache && 'sccache' || '' }}
 
 jobs:
   fmt:
@@ -99,7 +114,10 @@ jobs:
           toolchain: ${{ inputs.toolchain }}
           components: rustfmt
           rustflags: ""
+      # No `rust-cache` counterpart here: `cargo fmt` compiles nothing, so a
+      # restore and save of `target/` would cost more than the job.
       - uses: mozilla-actions/sccache-action@v0.0.9
+        if: inputs.use-sccache
       - name: cargo fmt --all --check
         working-directory: ${{ inputs.working-directory }}
         run: cargo fmt --all --check
@@ -116,6 +134,11 @@ jobs:
           toolchain: ${{ inputs.toolchain }}
           rustflags: ""
       - uses: mozilla-actions/sccache-action@v0.0.9
+        if: inputs.use-sccache
+      - uses: Swatinem/rust-cache@v2
+        if: ${{ !inputs.use-sccache }}
+        with:
+          workspaces: ${{ inputs.working-directory }}
       - name: cargo check
         working-directory: ${{ inputs.working-directory }}
         run: cargo check ${{ inputs.cargo-flags }}
@@ -133,6 +156,11 @@ jobs:
           components: clippy
           rustflags: ""
       - uses: mozilla-actions/sccache-action@v0.0.9
+        if: inputs.use-sccache
+      - uses: Swatinem/rust-cache@v2
+        if: ${{ !inputs.use-sccache }}
+        with:
+          workspaces: ${{ inputs.working-directory }}
       - name: cargo clippy
         working-directory: ${{ inputs.working-directory }}
         run: cargo clippy ${{ inputs.cargo-flags }} -- ${{ inputs.clippy-args }}
@@ -149,6 +177,11 @@ jobs:
           toolchain: ${{ inputs.toolchain }}
           rustflags: ""
       - uses: mozilla-actions/sccache-action@v0.0.9
+        if: inputs.use-sccache
+      - uses: Swatinem/rust-cache@v2
+        if: ${{ !inputs.use-sccache }}
+        with:
+          workspaces: ${{ inputs.working-directory }}
       - name: cargo build
         working-directory: ${{ inputs.working-directory }}
         run: cargo build ${{ inputs.cargo-flags }}
@@ -167,6 +200,11 @@ jobs:
           toolchain: ${{ inputs.toolchain }}
           rustflags: ""
       - uses: mozilla-actions/sccache-action@v0.0.9
+        if: inputs.use-sccache
+      - uses: Swatinem/rust-cache@v2
+        if: ${{ !inputs.use-sccache }}
+        with:
+          workspaces: ${{ inputs.working-directory }}
       - name: cargo test
         working-directory: ${{ inputs.working-directory }}
         run: |

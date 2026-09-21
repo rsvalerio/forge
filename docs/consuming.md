@@ -32,6 +32,21 @@ Per-repo variants:
 | `ops` | `test-args: --ignored`, `env-json: '{"OPS_LOG_LEVEL":"debug"}'` |
 | `oxydraw` | `working-directory: backend` (its Cargo workspace is not at the root) |
 | `event0` | defaults; expect a backlog of failures on the first run |
+| `dbsec` | `runs-on: blacksmith-4vcpu-ubuntu-2404`, `use-sccache: false`, `run-tests: false` |
+
+### Runners that accelerate the Actions cache
+
+`use-sccache: false` is for a runner whose provider proxies the Actions cache to
+something colocated. Blacksmith does that for `actions/cache` and the language
+`setup-*` actions, and documents sccache as one of the two exceptions that still
+reach GitHub's own servers — so on those runners sccache is the one step paying
+full latency while everything around it does not. With the input off the jobs
+drop `RUSTC_WRAPPER` and cache `target/` with `Swatinem/rust-cache`, which is an
+`actions/cache` consumer and so is accelerated like the rest. `fmt` gets neither,
+because it compiles nothing.
+
+Leave it on (the default) for GitHub-hosted runners, where sccache's cache is as
+near as any other.
 
 oxydraw's `frontend` job stays in its own `ci.yml` as a second job alongside the `uses:`
 call — it is Bun/SPA-specific with one consumer.
