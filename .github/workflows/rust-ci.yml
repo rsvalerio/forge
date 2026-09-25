@@ -100,6 +100,11 @@ env:
   # the deps job already uses to opt out, and cargo treats an empty value as no
   # wrapper.
   RUSTC_WRAPPER: ${{ inputs.use-sccache && 'sccache' || '' }}
+  # Stated here rather than left to `setup-rust-toolchain`, which exports the same
+  # value only when nothing set it first. sccache cannot cache an incremental
+  # build, and `target/` caching gains nothing from one either: a CI checkout never
+  # recompiles the same crate twice.
+  CARGO_INCREMENTAL: "0"
 # Every `setup-rust-toolchain` step below passes `cache: false`. The action runs
 # `Swatinem/rust-cache` itself unless told not to, so without it every job paid a
 # restore and save of `target/` whatever `use-sccache` said: on top of sccache in
