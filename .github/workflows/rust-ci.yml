@@ -100,6 +100,13 @@ env:
   # the deps job already uses to opt out, and cargo treats an empty value as no
   # wrapper.
   RUSTC_WRAPPER: ${{ inputs.use-sccache && 'sccache' || '' }}
+# Every `setup-rust-toolchain` step below passes `cache: false`. The action runs
+# `Swatinem/rust-cache` itself unless told not to, so without it every job paid a
+# restore and save of `target/` whatever `use-sccache` said: on top of sccache in
+# sccache mode, twice over in rust-cache mode, and even in `fmt` and `deps`, which
+# compile nothing. Its cache also keys on the repo root rather than
+# `working-directory`. The explicit `Swatinem/rust-cache` steps, gated on
+# `use-sccache`, are the only `target/` caching these jobs do.
 
 jobs:
   fmt:
@@ -114,6 +121,7 @@ jobs:
           toolchain: ${{ inputs.toolchain }}
           components: rustfmt
           rustflags: ""
+          cache: false
       # No `rust-cache` counterpart here: `cargo fmt` compiles nothing, so a
       # restore and save of `target/` would cost more than the job.
       - uses: mozilla-actions/sccache-action@v0.0.9
@@ -133,6 +141,7 @@ jobs:
         with:
           toolchain: ${{ inputs.toolchain }}
           rustflags: ""
+          cache: false
       - uses: mozilla-actions/sccache-action@v0.0.9
         if: inputs.use-sccache
       - uses: Swatinem/rust-cache@v2
@@ -155,6 +164,7 @@ jobs:
           toolchain: ${{ inputs.toolchain }}
           components: clippy
           rustflags: ""
+          cache: false
       - uses: mozilla-actions/sccache-action@v0.0.9
         if: inputs.use-sccache
       - uses: Swatinem/rust-cache@v2
@@ -176,6 +186,7 @@ jobs:
         with:
           toolchain: ${{ inputs.toolchain }}
           rustflags: ""
+          cache: false
       - uses: mozilla-actions/sccache-action@v0.0.9
         if: inputs.use-sccache
       - uses: Swatinem/rust-cache@v2
@@ -199,6 +210,7 @@ jobs:
         with:
           toolchain: ${{ inputs.toolchain }}
           rustflags: ""
+          cache: false
       - uses: mozilla-actions/sccache-action@v0.0.9
         if: inputs.use-sccache
       - uses: Swatinem/rust-cache@v2
@@ -233,6 +245,7 @@ jobs:
         with:
           toolchain: ${{ inputs.toolchain }}
           rustflags: ""
+          cache: false
       - name: Install cargo-deny
         uses: taiki-e/install-action@v2
         with:
