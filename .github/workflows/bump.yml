@@ -202,10 +202,10 @@ jobs:
         run: |
           set -euo pipefail
           missing=()
-          IFS=',' read -ra entries <<<"$TOOLS"
+          # install-action takes a comma- or whitespace-separated list, newlines
+          # included; accept every form it does.
+          read -ra entries -d '' <<<"$(printf '%s' "$TOOLS" | tr ',' ' ')" || true
           for entry in "${entries[@]}"; do
-            entry="$(echo "$entry" | tr -d '[:space:]')"
-            [ -n "$entry" ] || continue
             case "$entry" in
               *@*) missing+=("$entry"); continue ;;
             esac
