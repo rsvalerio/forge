@@ -93,8 +93,8 @@ Run the **Release** workflow (`.github/workflows/release.yml`) from the Actions 
 the version to cut (`vX.Y.Z`) and optionally the ref to cut it from (default `main`). Tick
 `dry-run` to run every check without writing a ref.
 
-It does in one run what used to be a checklist, and refuses — **before any ref is
-written** — when a step would have gone wrong:
+It does in one run what used to be a checklist. Every check below runs **before any ref
+is written**, so a refusal leaves the repository untouched:
 
 1. **Testbed green on `main`.** The target commit must be on the default branch and have a
    successful `Test self` run. A commit whose run is still in flight is refused; wait and
@@ -122,6 +122,9 @@ written** — when a step would have gone wrong:
 Two dispatches never race: runs share a concurrency group and queue. The version tag is
 created with a plain create, which fails if the ref already exists, so it can never
 overwrite a tag — and a failure there stops the run before `v1` is touched.
+The one partial outcome is the reverse: `vX.Y.Z` is created, then repointing `v1` fails.
+A re-run is refused (the version now exists), so repoint `v1` by hand with the second
+command of the [fallback](#fallback-cutting-a-release-by-hand).
 
 The workflow writes with the GitHub App token (`GH_APP_PRIVATE_KEY`,
 `vars.GH_APP_CLIENT_ID`), scoped to this repository; the App needs `contents: write` on
@@ -150,7 +153,10 @@ git tag -f -s -m "v1 -> vX.Y.Z" v1 'vX.Y.Z^{}' && git push origin vX.Y.Z && git 
 ```
 
 Run the same checks the workflow would have: `Test self` green on `<sha>`, on `main`, the
-version new and increasing, and no `v1` repoint for a major above it.
+version new and greater than every existing release tag, and no `v1` repoint for a major
+above it. The one exception is a patch for an older line (step 2 above): it must be
+greater than every tag on *its own* line, and you run only the first command. `v1` stays
+on the newest release, and repointing it at an older one would roll every consumer back.
 
 Both extras earn their keep. `^{}` peels the annotated release tag to the commit it
 points at — without it you create a *tag object pointing at a tag object*, which git
