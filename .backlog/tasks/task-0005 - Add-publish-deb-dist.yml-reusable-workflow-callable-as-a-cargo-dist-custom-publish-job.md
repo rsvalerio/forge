@@ -1,9 +1,10 @@
 ---
 id: TASK-0005
 title: 'Add publish-deb-dist.yml reusable workflow callable as a cargo-dist custom publish job'
-status: Triage
+status: To Do
 assignee: []
 created_date: '2026-09-26 16:34'
+updated_date: '2026-09-26 16:50'
 labels:
   - deb
   - cargo-dist
@@ -12,6 +13,7 @@ labels:
 dependencies:
   - TASK-0002
   - TASK-0004
+parent_task_id: 'TASK-0009'
 modified_files:
   - .github/workflows/publish-deb-dist.yml
   - docs/consuming.md

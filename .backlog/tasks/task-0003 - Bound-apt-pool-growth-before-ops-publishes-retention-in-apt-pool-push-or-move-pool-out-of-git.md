@@ -1,14 +1,16 @@
 ---
 id: TASK-0003
 title: 'Bound apt pool growth before ops publishes (retention in apt-pool-push, or move pool out of git)'
-status: Triage
+status: To Do
 assignee: []
 created_date: '2026-09-26 16:33'
+updated_date: '2026-09-26 16:50'
 labels:
   - deb
   - apt
 dependencies:
   - TASK-0002
+parent_task_id: 'TASK-0009'
 modified_files:
   - actions/apt-pool-push/action.yml
   - docs/consuming.md

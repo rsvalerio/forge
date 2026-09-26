@@ -1,14 +1,16 @@
 ---
 id: TASK-0002
 title: 'Extract apt-pool-push composite action that commits one or more .debs to the apt pool'
-status: Triage
+status: To Do
 assignee: []
 created_date: '2026-09-26 16:33'
+updated_date: '2026-09-26 16:50'
 labels:
   - deb
   - apt
   - actions
 dependencies: []
+parent_task_id: 'TASK-0009'
 modified_files:
   - actions/apt-pool-push/action.yml
   - .github/workflows/publish-deb.yml

@@ -1,14 +1,16 @@
 ---
 id: TASK-0004
 title: 'Add deb-from-dist composite action that repackages cargo-dist linux tarballs into per-arch .debs'
-status: Triage
+status: To Do
 assignee: []
 created_date: '2026-09-26 16:33'
+updated_date: '2026-09-26 16:50'
 labels:
   - deb
   - cargo-dist
   - actions
 dependencies: []
+parent_task_id: 'TASK-0009'
 modified_files:
   - actions/deb-from-dist/action.yml
   - docs/consuming.md
