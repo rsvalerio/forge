@@ -1,9 +1,10 @@
 name: Publish .deb
 
 # Shared implementation behind oxydraw's (and later my-cloud's) publish-deb.yml. Builds
-# nothing itself — the consumer's build command produces the .deb, and this workflow owns
-# the part that is identical everywhere: minting an apt-scoped token, attributing the
-# commit to the App bot, and dropping the package into the apt repo's pool.
+# nothing itself — the consumer's build command produces the .deb, and
+# actions/apt-pool-push owns the part that is identical everywhere: minting an apt-scoped
+# token, attributing the commit to the App bot, and dropping the package into the apt
+# repo's pool.
 #
 # Extracted from oxydraw/.github/workflows/publish-deb.yml, with the hardcoded
 # `rsvalerio/apt` destination replaced by an override so the testbed can exercise this
@@ -107,64 +108,16 @@ jobs:
             exit 1
           fi
           echo "path=$deb" >>"$GITHUB_OUTPUT"
-          echo "file=$(basename "$deb")" >>"$GITHUB_OUTPUT"
-
-      - name: Derive apt repository name
-        id: apt
-        env:
-          APT: ${{ inputs.apt-repository }}
-        run: echo "name=${APT#*/}" >>"$GITHUB_OUTPUT"
-
-      - name: Mint apt-scoped token (GitHub App)
-        id: apt-token
-        uses: ./.forge/actions/mint-app-token
-        with:
-          client-id: ${{ inputs.app-client-id || vars.GH_APP_CLIENT_ID }}
-          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
-          owner: ${{ inputs.owner }}
-          # GITHUB_TOKEN cannot push cross-repo; this is the only way in.
-          repositories: ${{ steps.apt.outputs.name }}
-
-      - name: Check out the apt repository
-        uses: actions/checkout@v6
-        with:
-          repository: ${{ inputs.apt-repository }}
-          token: ${{ steps.apt-token.outputs.token }}
-          persist-credentials: true
-          path: .apt
-
-      - name: Configure App bot identity
-        uses: ./.forge/actions/app-bot-identity
-        with:
-          token: ${{ steps.apt-token.outputs.token }}
-          app-slug: ${{ steps.apt-token.outputs.app-slug }}
-          working-directory: .apt
 
       - name: Publish to the apt pool
-        env:
-          DEB: ${{ steps.deb.outputs.path }}
-          DEB_FILE: ${{ steps.deb.outputs.file }}
-          POOL: ${{ inputs.pool-path }}
-          PACKAGE: ${{ inputs.package-name }}
-          VERSION: ${{ inputs.version || github.ref_name }}
-          DRY_RUN: ${{ inputs.dry-run }}
-        run: |
-          set -euo pipefail
-          mkdir -p ".apt/${POOL}"
-          cp "$DEB" ".apt/${POOL}/"
-          cd .apt
-          git add "${POOL}/${DEB_FILE}"
-
-          if git diff --cached --quiet; then
-            echo "No changes to publish (package already present)."
-            exit 0
-          fi
-
-          if [ "$DRY_RUN" = "true" ]; then
-            echo "::notice::dry-run: ${DEB_FILE} staged in ${POOL}/, not committed or pushed."
-            git --no-pager diff --cached --stat
-            exit 0
-          fi
-
-          git commit -m "${PACKAGE}: add ${VERSION}"
-          git push origin HEAD
+        uses: ./.forge/actions/apt-pool-push
+        with:
+          debs: ${{ steps.deb.outputs.path }}
+          package-name: ${{ inputs.package-name }}
+          version: ${{ inputs.version || github.ref_name }}
+          apt-repository: ${{ inputs.apt-repository }}
+          pool-path: ${{ inputs.pool-path }}
+          dry-run: ${{ inputs.dry-run }}
+          owner: ${{ inputs.owner }}
+          app-client-id: ${{ inputs.app-client-id || vars.GH_APP_CLIENT_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}

@@ -1,0 +1,117 @@
+name: apt pool push
+description: >-
+  Commit one or more .deb files into an apt repository's pool as a single commit and
+  push it, authored by the GitHub App bot. The apt repository's own workflow indexes and
+  publishes the pool.
+
+# Every .deb publisher repeated this tail inline: mint an apt-scoped token, check out the
+# apt repo, copy the package into pool/, commit, push. One call per release puts every
+# arch in one commit, so the apt repository's aptly/Pages publish runs once per release
+# instead of once per arch.
+
+inputs:
+  debs:
+    description: Newline-separated .deb paths, relative to the workspace or absolute.
+    required: true
+  package-name:
+    description: >-
+      Package label for the pool commit message (`<package-name>: add <version>`).
+    required: true
+  version:
+    description: Version label for the pool commit message.
+    required: true
+  apt-repository:
+    description: APT repository to publish into, as `owner/name`.
+    required: false
+    default: rsvalerio/apt
+  pool-path:
+    description: Path within the apt repository to drop the .debs into.
+    required: false
+    default: pool
+  keep-versions:
+    description: >-
+      Retention. When greater than 0, keep only the newest N versions (by
+      dpkg --compare-versions) of each package+arch this call publishes, and remove the
+      older ones in the same commit. 0 keeps every version.
+    required: false
+    default: "0"
+  dry-run:
+    description: Check out the apt repository and stage the files, then stop before committing.
+    required: false
+    default: "false"
+  owner:
+    description: Owner of the apt repository, for the App token.
+    required: false
+    default: rsvalerio
+  app-client-id:
+    description: The App's client id, e.g. vars.GH_APP_CLIENT_ID.
+    required: true
+  private-key:
+    description: The App's private key, e.g. secrets.GH_APP_PRIVATE_KEY.
+    required: true
+
+outputs:
+  changed:
+    description: "`true` when the pool differed from what the call staged."
+    value: ${{ steps.push.outputs.changed }}
+  pushed:
+    description: "`true` when a commit was pushed (never under dry-run)."
+    value: ${{ steps.push.outputs.pushed }}
+
+runs:
+  using: composite
+  steps:
+    # A composite action's `uses: ./path` resolves against the workspace, not against this
+    # action's directory, and a remote `rsvalerio/forge/...@ref` would pin the helpers to a
+    # ref other than the one this action was loaded from. Copying the siblings into the
+    # workspace keeps all three at the same ref, however the caller loaded this action.
+    - name: Stage forge helper actions
+      id: setup
+      shell: bash
+      env:
+        APT: ${{ inputs.apt-repository }}
+      run: |
+        set -euo pipefail
+        dest="${GITHUB_WORKSPACE}/.apt-pool-push/actions"
+        rm -rf "$dest"
+        mkdir -p "$dest"
+        cp -R "${GITHUB_ACTION_PATH}/../mint-app-token" "${GITHUB_ACTION_PATH}/../app-bot-identity" "$dest/"
+        echo "apt-name=${APT#*/}" >>"$GITHUB_OUTPUT"
+
+    - name: Mint apt-scoped token (GitHub App)
+      id: token
+      uses: ./.apt-pool-push/actions/mint-app-token
+      with:
+        client-id: ${{ inputs.app-client-id }}
+        private-key: ${{ inputs.private-key }}
+        owner: ${{ inputs.owner }}
+        # GITHUB_TOKEN cannot push cross-repo; this is the only way in.
+        repositories: ${{ steps.setup.outputs.apt-name }}
+
+    - name: Check out the apt repository
+      uses: actions/checkout@v6
+      with:
+        repository: ${{ inputs.apt-repository }}
+        token: ${{ steps.token.outputs.token }}
+        persist-credentials: true
+        path: .apt-pool-push/apt
+
+    - name: Configure App bot identity
+      uses: ./.apt-pool-push/actions/app-bot-identity
+      with:
+        token: ${{ steps.token.outputs.token }}
+        app-slug: ${{ steps.token.outputs.app-slug }}
+        working-directory: .apt-pool-push/apt
+
+    - name: Commit the .debs to the pool
+      id: push
+      shell: bash
+      env:
+        DEBS: ${{ inputs.debs }}
+        POOL: ${{ inputs.pool-path }}
+        PACKAGE: ${{ inputs.package-name }}
+        VERSION: ${{ inputs.version }}
+        DRY_RUN: ${{ inputs.dry-run }}
+        KEEP_VERSIONS: ${{ inputs.keep-versions }}
+        APT_DIR: .apt-pool-push/apt
+      run: '"${GITHUB_ACTION_PATH}/pool-update.sh"'

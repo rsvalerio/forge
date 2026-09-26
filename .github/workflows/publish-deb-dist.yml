@@ -1,0 +1,205 @@
+name: Publish .deb from dist
+
+# The apt counterpart of publish-homebrew.yml, for cargo-dist projects. dist calls a custom
+# publish job with a single `plan` input, which publish-deb.yml (package-name, version, a
+# build command) cannot accept. So this workflow takes the plan, repackages the
+# linux-gnu tarballs dist already built (actions/deb-from-dist) and commits every arch to
+# the apt pool in one commit (actions/apt-pool-push).
+#
+# Call chain: release.yml -> the consumer's local wrapper named in `publish-jobs` -> this.
+# That is 3 of the 4 permitted reusable-workflow nesting levels; do not add another.
+
+on:
+  workflow_call:
+    inputs:
+      plan:
+        description: cargo-dist's release plan JSON, passed through from release.yml.
+        type: string
+        required: true
+      app:
+        description: >-
+          Which of the plan's releases to package, by app_name. Needed only when more than
+          one release in the plan ships linux-gnu tarballs.
+        type: string
+        required: false
+        default: ""
+      package-name:
+        description: Debian package name. Defaults to the app name.
+        type: string
+        required: false
+        default: ""
+      description:
+        description: Control-file Description. The first line is the synopsis.
+        type: string
+        required: true
+      maintainer:
+        description: Control-file Maintainer, e.g. `Name <email>`.
+        type: string
+        required: true
+      section:
+        type: string
+        required: false
+        default: utils
+      depends:
+        type: string
+        required: false
+        default: ""
+      homepage:
+        type: string
+        required: false
+        default: ""
+      install-path:
+        type: string
+        required: false
+        default: /usr/bin
+      include-docs:
+        description: Install the archive's LICENSE* and README* under /usr/share/doc/<package>/.
+        type: boolean
+        required: false
+        default: true
+      targets:
+        description: dist target triples to package. Default every linux-gnu tarball.
+        type: string
+        required: false
+        default: ""
+      apt-repository:
+        description: >-
+          APT repository to publish into, as `owner/name`. Overridable so the testbed can
+          exercise this path without polluting the production pool (design rule 1).
+        type: string
+        required: false
+        default: rsvalerio/apt
+      pool-path:
+        type: string
+        required: false
+        default: pool
+      keep-versions:
+        description: >-
+          Keep the newest N versions of this package per arch in the pool and remove older
+          ones in the same commit; 0 keeps everything. See docs/consuming.md, "Retention".
+        type: number
+        required: false
+        default: 3
+      dry-run:
+        description: Build and stage the .debs, then stop before committing or pushing.
+        type: boolean
+        required: false
+        default: false
+      owner:
+        type: string
+        required: false
+        default: rsvalerio
+      app-client-id:
+        type: string
+        required: false
+        default: ""
+      forge-ref:
+        type: string
+        required: false
+        default: v1
+      runs-on:
+        type: string
+        required: false
+        default: ubuntu-22.04
+    secrets:
+      GH_APP_PRIVATE_KEY:
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  publish-deb:
+    name: Publish .deb
+    runs-on: ${{ inputs.runs-on }}
+    # The caller's `if:` normally skips prereleases already (dist generates it). This is
+    # the same guard, so a hand-written caller that forgets it still does not ship a
+    # prerelease to apt users.
+    if: ${{ !fromJson(inputs.plan).announcement_is_prerelease || fromJson(inputs.plan).publish_prereleases }}
+    steps:
+      - name: Read the dist plan
+        id: plan
+        env:
+          PLAN: ${{ inputs.plan }}
+          APP: ${{ inputs.app }}
+        run: |
+          set -euo pipefail
+          # Releases that shipped at least one linux-gnu tarball; the rest have nothing
+          # to package.
+          candidates="$(jq -c '[.releases[]
+            | select([.artifacts[] | test("-unknown-linux-gnu\\.tar\\.gz$")] | any)]' <<<"$PLAN")"
+          if [ -n "$APP" ]; then
+            release="$(jq -c --arg app "$APP" '[.[] | select(.app_name == $app)] | first // empty' <<<"$candidates")"
+            [ -n "$release" ] || { echo "::error::publish-deb-dist: no release '$APP' with linux-gnu tarballs in the plan." >&2; exit 1; }
+          else
+            count="$(jq length <<<"$candidates")"
+            if [ "$count" != 1 ]; then
+              echo "::error::publish-deb-dist: the plan has ${count} releases with linux-gnu tarballs" \
+                   "($(jq -r '[.[].app_name] | join(", ")' <<<"$candidates")); pass 'app' to pick one." >&2
+              exit 1
+            fi
+            release="$(jq -c '.[0]' <<<"$candidates")"
+          fi
+          # app_version rather than announcement_tag: in a multi-package workspace the tag
+          # is `<app>-v<version>`, which is not a Debian version.
+          {
+            echo "app=$(jq -r .app_name <<<"$release")"
+            echo "version=$(jq -r .app_version <<<"$release")"
+          } >>"$GITHUB_OUTPUT"
+
+      - name: Check out forge
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          repository: rsvalerio/forge
+          ref: ${{ inputs.forge-ref }}
+          path: .forge
+          persist-credentials: false
+
+      # The GitHub Release does not exist yet: `announce` creates it after every publish
+      # job. The tarballs are only reachable as this run's workflow artifacts.
+      - name: Fetch dist artifacts
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          pattern: artifacts-*
+          path: ${{ runner.temp }}/dist-artifacts
+          merge-multiple: true
+
+      - name: Build .debs
+        id: deb
+        uses: ./.forge/actions/deb-from-dist
+        with:
+          artifacts-dir: ${{ runner.temp }}/dist-artifacts
+          version: ${{ steps.plan.outputs.version }}
+          app: ${{ steps.plan.outputs.app }}
+          package-name: ${{ inputs.package-name }}
+          description: ${{ inputs.description }}
+          maintainer: ${{ inputs.maintainer }}
+          section: ${{ inputs.section }}
+          depends: ${{ inputs.depends }}
+          homepage: ${{ inputs.homepage }}
+          install-path: ${{ inputs.install-path }}
+          include-docs: ${{ inputs.include-docs }}
+          targets: ${{ inputs.targets }}
+
+      # Before the push, so the packages can be inspected under dry-run and survive a
+      # failed push. Not named artifacts-*: `announce` would attach it to the release.
+      - name: Upload .debs
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: deb-${{ steps.plan.outputs.app }}-${{ steps.deb.outputs.version }}
+          path: ${{ steps.deb.outputs.debs }}
+          if-no-files-found: error
+
+      - name: Publish to the apt pool
+        uses: ./.forge/actions/apt-pool-push
+        with:
+          debs: ${{ steps.deb.outputs.debs }}
+          package-name: ${{ inputs.package-name || steps.plan.outputs.app }}
+          version: ${{ steps.deb.outputs.version }}
+          apt-repository: ${{ inputs.apt-repository }}
+          pool-path: ${{ inputs.pool-path }}
+          keep-versions: ${{ inputs.keep-versions }}
+          dry-run: ${{ inputs.dry-run }}
+          owner: ${{ inputs.owner }}
+          app-client-id: ${{ inputs.app-client-id || vars.GH_APP_CLIENT_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}

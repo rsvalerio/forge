@@ -1,13 +1,15 @@
 ---
 id: TASK-0001
 title: 'Add a workflow_dispatch release workflow that tags vX.Y.Z and repoints v1'
-status: Triage
+status: To Do
 assignee: []
 created_date: '2026-09-26 10:04'
+updated_date: '2026-09-26 16:50'
 labels:
   - ci
   - release
 dependencies: []
+parent_task_id: 'TASK-0010'
 modified_files:
   - .github/workflows
   - docs/versioning.md

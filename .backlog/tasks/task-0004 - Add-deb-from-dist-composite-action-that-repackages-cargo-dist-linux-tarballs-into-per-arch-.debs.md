@@ -1,14 +1,16 @@
 ---
 id: TASK-0004
 title: 'Add deb-from-dist composite action that repackages cargo-dist linux tarballs into per-arch .debs'
-status: Triage
+status: Done
 assignee: []
 created_date: '2026-09-26 16:33'
+updated_date: '2026-09-26 17:06'
 labels:
   - deb
   - cargo-dist
   - actions
 dependencies: []
+parent_task_id: 'TASK-0009'
 modified_files:
   - actions/deb-from-dist/action.yml
   - docs/consuming.md
@@ -45,9 +47,17 @@ musl targets are out of scope. ops ships none, and the apt repo serves Debian an
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Given a dist artifacts directory (or a release tag), produces one .deb per linux-gnu target with the correct Debian arch
-- [ ] #2 Tarball checksums are verified against the release .sha256 files before packaging
-- [ ] #3 An unmappable target triple fails the step
-- [ ] #4 Built .debs pass dpkg-deb --info / --contents and install cleanly with apt-get install ./pkg.deb
-- [ ] #5 Output paths are consumable by apt-pool-push without transformation
+- [x] #1 Given a dist artifacts directory (or a release tag), produces one .deb per linux-gnu target with the correct Debian arch
+- [x] #2 Tarball checksums are verified against the release .sha256 files before packaging
+- [x] #3 An unmappable target triple fails the step
+- [x] #4 Built .debs pass dpkg-deb --info / --contents and install cleanly with apt-get install ./pkg.deb
+- [x] #5 Output paths are consumable by apt-pool-push without transformation
+
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+actions/deb-from-dist: logic in deb-from-dist.sh, with action.yml as a thin wrapper. Local verification against real ops releases: artifacts-dir mode (v0.65.0) and tag mode (v0.64.0) each built amd64+arm64 .debs. dpkg-deb --info/--contents look right (root:root, 0755 dirs, 0755 binary, docs 0644). `apt-get install ./ops_0.65.0_amd64.deb` succeeds on ubuntu:22.04 and debian:bookworm, and the arm64 build installs and runs under emulation on ubuntu:22.04. A tampered .sha256, a musl or darwin triple, and a missing version each fail with a clear error.
+CI: the new test-self.yml job `deb-from-dist` packages ops v0.65.0 through the action, installs the amd64 .deb, feeds the `debs` output unchanged into pool-update.sh (AC5), and asserts an unmappable triple fails.
+<!-- SECTION:NOTES:END -->

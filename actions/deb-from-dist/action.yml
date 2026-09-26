@@ -1,0 +1,127 @@
+name: deb from dist
+description: >-
+  Repackage cargo-dist's linux-gnu release tarballs into one .deb per architecture,
+  verifying each tarball against its .sha256 sidecar first. Needs no compile, Docker or
+  Rust toolchain. The output feeds straight into apt-pool-push.
+
+# cargo-dist already ships finished linux-gnu binaries. Wrapping one in a .deb is an unpack,
+# a control file and `dpkg-deb --root-owner-group --build`, which is what my-cloud's
+# deb/Makefiles do by hand. Only glibc targets are packaged: the apt repository serves
+# Debian and Ubuntu.
+
+inputs:
+  artifacts-dir:
+    description: >-
+      Directory holding the dist tarballs and their .sha256 files, as filled by
+      actions/download-artifact with pattern artifacts-* and merge-multiple. This is the
+      mode a dist custom publish job needs: it runs before `announce` creates the GitHub
+      Release. Pass this or `tag`, not both.
+    required: false
+    default: ""
+  tag:
+    description: >-
+      Download the tarballs from this existing GitHub Release instead (backfills, manual
+      runs). Pass this or `artifacts-dir`, not both.
+    required: false
+    default: ""
+  repository:
+    description: Repository whose release `tag` is downloaded from, as `owner/name`.
+    required: false
+    default: ${{ github.repository }}
+  token:
+    description: Token for downloading the release in `tag` mode.
+    required: false
+    default: ${{ github.token }}
+  version:
+    description: >-
+      Package version; a leading `v` is stripped. Required with `artifacts-dir` (a dist
+      publish job takes it from the plan). Defaults to the tag with `tag`.
+    required: false
+    default: ""
+  app:
+    description: Binary and archive name, e.g. `ops` for ops-x86_64-unknown-linux-gnu.tar.gz.
+    required: true
+  package-name:
+    description: Debian package name. Defaults to `app`.
+    required: false
+    default: ""
+  description:
+    description: Control-file Description. The first line is the synopsis; further lines become the extended description.
+    required: true
+  maintainer:
+    description: Control-file Maintainer, e.g. `Name <email>`.
+    required: true
+  section:
+    description: Control-file Section.
+    required: false
+    default: utils
+  depends:
+    description: Control-file Depends. Empty omits the field.
+    required: false
+    default: ""
+  homepage:
+    description: Control-file Homepage. Empty omits the field.
+    required: false
+    default: ""
+  targets:
+    description: >-
+      Space-, comma- or newline-separated dist target triples to package. Default: every
+      <app>-*-unknown-linux-gnu tarball present. A triple with no Debian architecture
+      mapping fails the step.
+    required: false
+    default: ""
+  install-path:
+    description: Directory the binary is installed into.
+    required: false
+    default: /usr/bin
+  include-docs:
+    description: Install the archive's LICENSE* and README* under /usr/share/doc/<package>/.
+    required: false
+    default: "true"
+  output-dir:
+    description: Directory to write the .debs into. Defaults to a directory under RUNNER_TEMP.
+    required: false
+    default: ""
+
+outputs:
+  debs:
+    description: Newline-separated absolute paths of the built .debs, the shape apt-pool-push's `debs` takes.
+    value: ${{ steps.build.outputs.debs }}
+  version:
+    description: The package version, with any leading `v` stripped.
+    value: ${{ steps.build.outputs.version }}
+
+runs:
+  using: composite
+  steps:
+    - name: Build .debs from dist tarballs
+      id: build
+      shell: bash
+      env:
+        ARTIFACTS_DIR: ${{ inputs.artifacts-dir }}
+        TAG: ${{ inputs.tag }}
+        REPOSITORY: ${{ inputs.repository }}
+        GH_TOKEN: ${{ inputs.token }}
+        VERSION: ${{ inputs.version }}
+        APP: ${{ inputs.app }}
+        PACKAGE: ${{ inputs.package-name || inputs.app }}
+        DESCRIPTION: ${{ inputs.description }}
+        MAINTAINER: ${{ inputs.maintainer }}
+        SECTION: ${{ inputs.section }}
+        DEPENDS: ${{ inputs.depends }}
+        HOMEPAGE: ${{ inputs.homepage }}
+        TARGETS: ${{ inputs.targets }}
+        INSTALL_PATH: ${{ inputs.install-path }}
+        INCLUDE_DOCS: ${{ inputs.include-docs }}
+        OUTPUT_DIR: ${{ inputs.output-dir || format('{0}/deb-from-dist', runner.temp) }}
+      run: |
+        set -euo pipefail
+        debs="$("${GITHUB_ACTION_PATH}/deb-from-dist.sh")"
+        version="${VERSION:-$TAG}"
+        {
+          echo "version=${version#v}"
+          echo "debs<<__DEBS__"
+          echo "$debs"
+          echo "__DEBS__"
+        } >>"$GITHUB_OUTPUT"
+        echo "$debs"

@@ -355,6 +355,228 @@ Defaults match oxydraw's existing layout (`make build` in `packaging/`,
 `make -C packaging deb-path`). Override `build-command`, `deb-path-command` and
 `working-directory` for a different layout.
 
+The pool commit itself is [`apt-pool-push`](#apt-pool-push); `publish-deb` builds the
+package and hands it over.
+
+---
+
+## apt-pool-push
+
+A composite action, for a job that already has its `.deb` files and only needs them in
+the apt pool. `publish-deb` and `publish-deb-dist` both end with it.
+
+```yaml
+      - uses: rsvalerio/forge/actions/apt-pool-push@v1
+        with:
+          debs: |
+            out/ops_0.65.0_amd64.deb
+            out/ops_0.65.0_arm64.deb
+          package-name: ops
+          version: 0.65.0
+          app-client-id: ${{ vars.GH_APP_CLIENT_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+```
+
+- **One call, one commit.** Every file in `debs` lands in a single commit and push, so the
+  apt repository's aptly/Pages publish runs once per release rather than once per arch.
+- **Idempotent.** If every file is already in the pool with identical contents, the step
+  prints `No changes to publish` and exits 0.
+- **`dry-run: true`** still mints the token and checks out the apt repository, stages the
+  files and prints `git diff --cached --stat`, then stops before committing.
+- `apt-repository` (default `rsvalerio/apt`) and `pool-path` (default `pool`) are the
+  target override from design rule 1; `owner` sets the App token's owner.
+- The token is minted with `mint-app-token`, scoped to the apt repository alone, and the
+  commit is authored by the App bot via `app-bot-identity`.
+- Outputs: `changed` (the pool differed from what was staged) and `pushed` (a commit was
+  pushed).
+
+The action checks the apt repository out under `.apt-pool-push/` in the workspace.
+
+### Retention (`keep-versions`)
+
+`rsvalerio/apt` keeps its `.deb` files in git, so every release grows the repository for
+good. That is tolerable for a few small packages a year, and not for ops, which adds about
+14 MB per release (amd64 plus arm64) and has shipped 65 of them.
+
+`keep-versions: N` bounds it. In the same commit that adds the new files, the action
+removes every version of each published *package and architecture* beyond the newest N,
+ordered by `dpkg --compare-versions` (so `1.10.0` sorts above `1.2.0`, and `2.0.0~rc1`
+below `2.0.0`).
+
+- It defaults to `0`, which keeps everything: `publish-deb` does not change behaviour.
+  `publish-deb-dist` defaults to `3`.
+- Only the package and architecture being published are pruned. Other packages, and other
+  architectures of the same package (including `Architecture: all`), are left alone.
+- Pool filenames are split on `_`, which Debian forbids in both package names and
+  versions. So `my-haproxy` and `my-haproxy-sites` are pruned independently, which a
+  prefix glob would get wrong.
+- Publishing a version older than the newest N (a backfill) adds it and removes it again
+  in the same step. The step logs a warning and pushes nothing.
+
+**What apt users see.** Once a version leaves the pool, the next index publish drops it,
+and `apt install <pkg>=<old-version>` stops working. Anything that pins an exact version
+has to move forward within the retention window. Installs from before the prune are not
+touched.
+
+**Retention bounds the pool, not the history.** A removed `.deb` stays in git history
+until that history is rewritten. Run `rsvalerio/apt`'s `scripts/squash-history.sh` when
+`.git` outgrows the pool it serves. With `keep-versions` set, the pool is the floor that
+squash can get back down to.
+
+---
+
+## deb-from-dist
+
+A composite action that turns cargo-dist's `<app>-<triple>.tar.gz` release tarballs into
+`<package>_<version>_<arch>.deb`, one per linux-gnu target. It needs no compile, Docker or
+Rust toolchain. Most consumers reach it through
+[`publish-deb-dist`](#publish-deb-dist) rather than directly.
+
+```yaml
+      # Backfill an old version from its existing GitHub Release.
+      - id: deb
+        uses: rsvalerio/forge/actions/deb-from-dist@v1
+        with:
+          tag: v0.64.0
+          app: ops
+          description: Batteries-included task runner
+          maintainer: Rodrigo Valeri <rsvalerio@users.noreply.github.com>
+      - uses: rsvalerio/forge/actions/apt-pool-push@v1
+        with:
+          debs: ${{ steps.deb.outputs.debs }}
+          package-name: ops
+          version: ${{ steps.deb.outputs.version }}
+          app-client-id: ${{ vars.GH_APP_CLIENT_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+```
+
+- **Source.** Pass `artifacts-dir` or `tag`, never both. `artifacts-dir` is a directory
+  that `actions/download-artifact` filled (`pattern: artifacts-*`, `merge-multiple: true`).
+  It is the only mode a dist publish job can use, because the GitHub Release does not
+  exist until `announce` runs. `tag` downloads from a release that already exists, from
+  `repository` (default: the calling repository).
+- **Version.** Required with `artifacts-dir`. With `tag` it comes from the tag. A
+  leading `v` is stripped either way.
+- **Checksums.** Every tarball is checked against its `.sha256` sidecar before it is
+  unpacked. A missing sidecar or a mismatch fails the step.
+- **Targets.** By default, every `<app>-*-unknown-linux-gnu.tar.gz` present.
+  `x86_64` maps to `amd64` and `aarch64` to `arm64`. Any other triple, including musl and
+  darwin, fails the step instead of getting a guessed architecture.
+- **Contents.** The binary goes to `install-path`/`<app>` (default `/usr/bin`), and the
+  archive's `LICENSE*` and `README*` go to `/usr/share/doc/<package>/`
+  (`include-docs: false` skips them). `description`, `maintainer`, `section` (default
+  `utils`), `depends` and `homepage` fill the control file. The first line of
+  `description` is the synopsis, and any further lines become the extended description.
+- **Outputs.** `debs` holds the built files' absolute paths, one per line, which is exactly
+  what `apt-pool-push`'s `debs` takes. `version` is the package version.
+
+---
+
+## publish-deb-dist
+
+The apt counterpart of `publish-homebrew`, for cargo-dist projects (ops, oxydraw,
+forge-testbed). dist calls a custom publish job with just the `plan`, so the job takes the
+app name and version from the plan, repackages the linux-gnu tarballs dist already built,
+and commits every arch to the apt pool in one commit.
+
+Wiring it up takes three edits in the consumer.
+
+**1. A local wrapper**, `.github/workflows/publish-deb-dist.yml`. As with homebrew,
+`publish-jobs` resolves a local path, and `dist generate` never touches this file:
+
+```yaml
+name: Publish .deb
+on:
+  workflow_call:
+    inputs:
+      plan:
+        required: true
+        type: string
+    secrets:
+      GH_APP_PRIVATE_KEY:
+        required: true
+
+jobs:
+  deb:
+    uses: rsvalerio/forge/.github/workflows/publish-deb-dist.yml@v1
+    with:
+      plan: ${{ inputs.plan }}
+      description: Batteries-included task runner
+      maintainer: Rodrigo Valeri <rsvalerio@users.noreply.github.com>
+      homepage: https://github.com/rsvalerio/ops
+    secrets:
+      GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
+```
+
+The chain is `release.yml` → wrapper → forge, which is 3 of the 4 permitted nesting
+levels. Name the wrapper `publish-deb-dist`, not `publish-deb`: oxydraw already has a
+`publish-deb.yml` that builds its own package.
+
+**2. The `publish-jobs` line** in `dist-workspace.toml`:
+
+```toml
+publish-jobs = ["./publish-homebrew", "./publish-deb-dist"]
+```
+
+**3. `release.yml`: the job, plus the `announce` edit.** Repos that set
+`allow-dirty = ["ci"]` (ops) maintain `release.yml` by hand, so dist will not add either
+one for them. Add the job next to `custom-publish-homebrew`, with an explicit `secrets:`
+block (design rule 3):
+
+```yaml
+  custom-publish-deb-dist:
+    needs:
+      - plan
+      - host
+    if: ${{ !fromJson(needs.plan.outputs.val).announcement_is_prerelease || fromJson(needs.plan.outputs.val).publish_prereleases }}
+    uses: ./.github/workflows/publish-deb-dist.yml
+    with:
+      plan: ${{ needs.plan.outputs.val }}
+    secrets:
+      GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
+    permissions:
+      "id-token": "write"
+      "packages": "write"
+```
+
+Then make `announce` wait for it, and still run when it skips itself on a prerelease:
+
+```diff
+   announce:
+     needs:
+       - plan
+       - host
+       - custom-publish-homebrew
++      - custom-publish-deb-dist
+-    if: ${{ always() && needs.host.result == 'success' && (needs.custom-publish-homebrew.result == 'skipped' || needs.custom-publish-homebrew.result == 'success') }}
++    if: ${{ always() && needs.host.result == 'success' && (needs.custom-publish-homebrew.result == 'skipped' || needs.custom-publish-homebrew.result == 'success') && (needs.custom-publish-deb-dist.result == 'skipped' || needs.custom-publish-deb-dist.result == 'success') }}
+```
+
+What the job does:
+
+1. Picks the release in the plan that shipped `*-unknown-linux-gnu.tar.gz` artifacts and
+   reads its `app_name` and `app_version`. If more than one release qualifies, pass `app`
+   to choose.
+2. Downloads this run's `artifacts-*` workflow artifacts. The GitHub Release does not
+   exist yet, because `announce` creates it after every publish job.
+3. Runs [`deb-from-dist`](#deb-from-dist) on them, which gives one `.deb` per linux-gnu
+   target.
+4. Uploads the `.debs` as the workflow artifact `deb-<app>-<version>`, so they can be
+   inspected under `dry-run`. The name deliberately avoids `artifacts-*`, which
+   `announce` would attach to the release.
+5. Runs [`apt-pool-push`](#apt-pool-push), putting every arch in one commit, with
+   `keep-versions` defaulting to **3**. See [Retention](#retention-keep-versions) before
+   you change it.
+
+**Prereleases are skipped** the way the homebrew job skips them: when
+`announcement_is_prerelease` is true and `publish_prereleases` is not. The caller's `if:`
+above does this, and the forge job repeats the guard, so a caller that omits it still
+does not ship a prerelease to apt users.
+
+`dry-run`, `apt-repository` and `pool-path` behave as in `apt-pool-push`. The control
+metadata inputs (`description`, `maintainer`, `section`, `depends`, `homepage`,
+`install-path`, `include-docs`) and `targets` are passed through to `deb-from-dist`.
+
 ---
 
 ## publish-crates
