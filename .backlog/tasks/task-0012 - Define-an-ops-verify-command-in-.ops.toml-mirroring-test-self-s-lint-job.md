@@ -1,13 +1,15 @@
 ---
 id: TASK-0012
 title: 'Define an ops verify command in .ops.toml mirroring test-self''s lint job'
-status: Triage
+status: To Do
 assignee: []
 created_date: '2026-09-26 17:08'
+updated_date: '2026-09-26 19:23'
 labels:
   - ci
   - tooling
 dependencies: []
+parent_task_id: 'TASK-0015'
 modified_files:
   - .ops.toml
   - .github/workflows/test-self.yml

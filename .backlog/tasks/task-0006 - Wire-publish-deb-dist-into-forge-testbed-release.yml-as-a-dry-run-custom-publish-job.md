@@ -1,15 +1,17 @@
 ---
 id: TASK-0006
 title: 'Wire publish-deb-dist into forge-testbed release.yml as a dry-run custom publish job'
-status: Triage
+status: To Do
 assignee: []
 created_date: '2026-09-26 16:34'
+updated_date: '2026-09-26 19:23'
 labels:
   - deb
   - cargo-dist
   - testbed
 dependencies:
   - TASK-0005
+parent_task_id: 'TASK-0014'
 modified_files:
   - docs/consuming.md
 priority: medium

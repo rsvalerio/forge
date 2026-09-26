@@ -1,14 +1,15 @@
 ---
 id: TASK-0013
 title: 'Decide on pinning third-party actions to commit SHAs across forge workflows'
-status: Triage
+status: To Do
 assignee: []
 created_date: '2026-09-26 18:31'
-updated_date: '2026-09-26 18:35'
+updated_date: '2026-09-26 19:23'
 labels:
   - ci
   - security
 dependencies: []
+parent_task_id: 'TASK-0015'
 modified_files:
   - .github/workflows
   - actions
