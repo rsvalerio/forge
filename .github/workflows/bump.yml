@@ -109,7 +109,9 @@ on:
         required: false
         default: "."
       install-tools:
-        description: Tools installed via taiki-e/install-action.
+        description: >-
+          Tools installed via taiki-e/install-action. An unpinned tool whose binary
+          is already on PATH (e.g. baked into a self-hosted runner image) is skipped.
         type: string
         required: false
         default: cargo-edit,cocogitto
@@ -184,10 +186,49 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
           app-slug: ${{ steps.app-token.outputs.app-slug }}
 
-      - name: Install ${{ inputs.install-tools }}
+      # install-action never skips a tool that is already on PATH, and neither
+      # cargo-edit nor cocogitto has a manifest there, so both go through its
+      # `cargo-binstall --force` fallback on every run. A self-hosted runner whose
+      # image bakes them in would re-download them each bump for nothing. Probe
+      # first and hand install-action only what is missing; on a GitHub-hosted
+      # runner that is everything, so behaviour there is unchanged.
+      #
+      # A pinned entry (`tool@1.2.3`) is always installed: a binary on PATH says
+      # nothing about which version it is.
+      - name: Find tools missing from the runner
+        id: tools
+        env:
+          TOOLS: ${{ inputs.install-tools }}
+        run: |
+          set -euo pipefail
+          missing=()
+          # install-action takes a comma- or whitespace-separated list, newlines
+          # included; accept every form it does.
+          read -ra entries -d '' <<<"$(printf '%s' "$TOOLS" | tr ',' ' ')" || true
+          for entry in "${entries[@]}"; do
+            case "$entry" in
+              *@*) missing+=("$entry"); continue ;;
+            esac
+            # The binary a tool provides, where it differs from the tool's name.
+            case "$entry" in
+              cocogitto) bin=cog ;;
+              cargo-edit) bin=cargo-set-version ;;
+              nextest) bin=cargo-nextest ;;
+              *) bin="$entry" ;;
+            esac
+            if command -v "$bin" >/dev/null; then
+              echo "$entry: $(command -v "$bin") already present, skipping"
+            else
+              missing+=("$entry")
+            fi
+          done
+          echo "missing=$(IFS=,; echo "${missing[*]}")" >>"$GITHUB_OUTPUT"
+
+      - name: Install ${{ steps.tools.outputs.missing }}
+        if: steps.tools.outputs.missing != ''
         uses: taiki-e/install-action@v2
         with:
-          tool: ${{ inputs.install-tools }}
+          tool: ${{ steps.tools.outputs.missing }}
 
       # In signed mode the commit is created through the API, so a `git push` post_bump_hook
       # would race it: cog would push the UNSIGNED commit first, leaving the branch ahead of
