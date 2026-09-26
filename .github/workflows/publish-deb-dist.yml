@@ -148,7 +148,7 @@ jobs:
           } >>"$GITHUB_OUTPUT"
 
       - name: Check out forge
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           repository: rsvalerio/forge
           ref: ${{ inputs.forge-ref }}
@@ -158,7 +158,7 @@ jobs:
       # The GitHub Release does not exist yet: `announce` creates it after every publish
       # job. The tarballs are only reachable as this run's workflow artifacts.
       - name: Fetch dist artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           pattern: artifacts-*
           path: ${{ runner.temp }}/dist-artifacts
@@ -184,7 +184,7 @@ jobs:
       # Before the push, so the packages can be inspected under dry-run and survive a
       # failed push. Not named artifacts-*: `announce` would attach it to the release.
       - name: Upload .debs
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: deb-${{ steps.plan.outputs.app }}-${{ steps.deb.outputs.version }}
           path: ${{ steps.deb.outputs.debs }}
