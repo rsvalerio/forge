@@ -142,7 +142,7 @@ jobs:
             actions/apt-pool-push/pool-update.sh
           [ "$(git -C "$work/remote.git" rev-list --count HEAD)" = 1 ] \
             || { echo "::error::expected a single pool commit"; exit 1; }
-          [ "$(git -C "$work/remote.git" ls-tree --name-only HEAD pool/ | wc -l)" = 2 ] \
+          [ "$(git -C "$work/remote.git" ls-tree --name-only HEAD:pool | wc -l)" = 2 ] \
             || { echo "::error::expected both .debs in the pool"; exit 1; }
 
       - name: An unmappable target is rejected
