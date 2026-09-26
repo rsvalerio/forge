@@ -1,10 +1,10 @@
 ---
 id: TASK-0012
 title: 'Define an ops verify command in .ops.toml mirroring test-self''s lint job'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-26 17:08'
-updated_date: '2026-09-26 19:23'
+updated_date: '2026-09-26 19:39'
 labels:
   - ci
   - tooling
@@ -31,6 +31,13 @@ ordinal: 1000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 ops verify runs the same checks as test-self.yml's lint job plus the local shell tests
-- [ ] #2 ops verify exits non-zero on an action.yml that is not valid YAML
+- [x] #1 ops verify runs the same checks as test-self.yml's lint job plus the local shell tests
+- [x] #2 ops verify exits non-zero on an action.yml that is not valid YAML
+
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+ops verify = actionlint + ci/lint.sh {shellcheck,executable,action-yml,config-toml} + ops check-yaml + pool-update.test.sh. test-self lint steps now call the same ci/lint.sh subcommands; actionlint pinned to 1.7.12 in CI and mise.toml. mise.toml pins shellcheck so the shim resolves without a global default. AC2 proven by appending invalid YAML to actions/signed-commit/action.yml: action-yml, check-yaml and actionlint all failed, ops verify rc=1.
+<!-- SECTION:NOTES:END -->

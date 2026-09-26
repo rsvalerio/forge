@@ -1,10 +1,10 @@
 ---
 id: TASK-0013
 title: 'Decide on pinning third-party actions to commit SHAs across forge workflows'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-26 18:31'
-updated_date: '2026-09-26 19:23'
+updated_date: '2026-09-26 19:40'
 labels:
   - ci
   - security
@@ -31,12 +31,16 @@ ordinal: 1000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 A pinning policy for third-party actions is recorded in README design rules
-- [ ] #2 Every uses: reference in forge follows that policy, with a version comment beside each SHA if SHAs are chosen
+- [x] #1 A pinning policy for third-party actions is recorded in README design rules
+- [x] #2 Every uses: reference in forge follows that policy, with a version comment beside each SHA if SHAs are chosen
+
 <!-- AC:END -->
 
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
 publish-deb-dist.yml was pinned on PR #12 (checkout v6.1.0, download-artifact v7.0.0, upload-artifact v6.0.0, the same SHAs ops pins). The rest of forge still uses tags; this task now covers making the repo consistent with that.
+
+Policy: README design rule 6 — third-party actions pinned to full commit SHA with "# vX.Y.Z" comment, same SHA as ops where ops pins; ./ and rsvalerio/forge/ refs exempt (docs/versioning.md). All 9 third-party actions pinned (checkout v6.1.0, download-artifact v7.0.0, create-github-app-token v3.2.0, setup-rust-toolchain v1.17.0, sccache-action v0.0.9, install-action v2.85.13, rust-cache v2.9.2, crates-io-auth-action v1.0.5, raven-actions/actionlint v2.2.0), each SHA resolved via git ls-remote. Enforced by ci/lint.sh pinned-actions in test-self lint job and ops verify.
+
 <!-- SECTION:NOTES:END -->
