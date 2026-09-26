@@ -4,12 +4,12 @@ title: 'Document keep-versions retention in rsvalerio/apt README'
 status: Triage
 assignee: []
 created_date: '2026-09-26 17:08'
+updated_date: '2026-09-26 18:31'
 labels:
   - docs
   - apt
 dependencies: []
-modified_files:
-  - docs/consuming.md
+modified_files: []
 priority: low
 ordinal: 1000
 ---
@@ -31,3 +31,9 @@ ordinal: 1000
 - [ ] #1 rsvalerio/apt README states the retention window per package+arch and its effect on pinned installs
 - [ ] #2 README says when to run scripts/squash-history.sh
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+modified_files emptied: the change lives in rsvalerio/apt, and this field only takes forge-local paths (PR #12 review).
+<!-- SECTION:NOTES:END -->
