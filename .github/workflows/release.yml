@@ -1,0 +1,247 @@
+name: Release
+
+# Cut a forge release from the Actions tab: tag `vX.Y.Z` on a commit of `main` and repoint
+# the moving major tag every consumer pins (`v1`) at it.
+#
+# forge has no cog.toml and no Bump caller of its own, so until this workflow the tag
+# consumers pin only moved when someone ran the hand-cut commands in versioning.md — and
+# skipping that step once is what left `v1` on v0.1.2 while v0.2.0 shipped. Everything a
+# human was trusted to remember is checked here instead, *before* any ref is written:
+#
+#   * the version is well-formed, new, and greater than every existing release tag;
+#   * the commit is on the default branch and `Test self` passed on it (versioning.md
+#     "Cutting a release", step 1);
+#   * `v1` is never carried past a major — the same rule bump.yml enforces for consumers.
+#
+# Tags are created through the API as lightweight refs, so they are unsigned, unlike the
+# SSH-signed tags cut by hand before this workflow existed. versioning.md records why that
+# is acceptable. `dry-run` runs every check and writes nothing.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to release, e.g. v0.4.0. Must be greater than every existing vX.Y.Z tag.
+        type: string
+        required: true
+      ref:
+        description: Branch, tag or commit SHA to release. Must be on the default branch.
+        type: string
+        required: false
+        default: main
+      dry-run:
+        description: Run every check and write no refs.
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+
+# Two dispatches at once could both pass the "greater than the latest tag" check before
+# either writes. Queue them instead; never cancel a release half-way through its writes.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  # The moving major tag this release line publishes. A release whose major is above it
+  # is tagged but leaves it in place: moving to v2 is a deliberate edit of this line,
+  # made together with publishing `v2` (versioning.md, "Cutting a release" step 4).
+  MAJOR_TAG: v1
+
+jobs:
+  # Read-only, on GITHUB_TOKEN. Nothing in this job can write a ref, so every refusal
+  # below fails the run before the App token even exists.
+  check:
+    name: Check the release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      sha: ${{ steps.target.outputs.sha }}
+      move-major: ${{ steps.major.outputs.move }}
+    steps:
+      - name: Version is well-formed, new and increasing
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          # Plain vMAJOR.MINOR.PATCH, no leading zeros, no pre-release suffix: `sort -V`
+          # below is only a correct semver order on exactly this shape.
+          semver='^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
+          if ! [[ "$VERSION" =~ $semver ]]; then
+            echo "::error::release: '${VERSION}' is not a version like v1.2.3." >&2
+            exit 1
+          fi
+
+          # `git/matching-refs` returns [] (not a 404) when nothing matches.
+          tags="$(gh api --paginate "/repos/${REPOSITORY}/git/matching-refs/tags/v" \
+                    --jq '.[].ref | ltrimstr("refs/tags/")')"
+          if grep -qxF -- "$VERSION" <<<"$tags"; then
+            echo "::error::release: ${VERSION} already exists." >&2
+            exit 1
+          fi
+
+          latest="$(grep -E "$semver" <<<"$tags" | sort -V | tail -n1 || true)"
+          if [ -n "$latest" ] &&
+             [ "$(printf '%s\n' "$latest" "$VERSION" | sort -V | tail -n1)" != "$VERSION" ]; then
+            echo "::error::release: ${VERSION} is not greater than the latest release," \
+                 "${latest}." >&2
+            exit 1
+          fi
+          echo "${VERSION} follows ${latest:-(no previous release)}"
+
+      - name: Target commit is on the default branch
+        id: target
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          REF: ${{ inputs.ref }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          if ! sha="$(gh api "/repos/${REPOSITORY}/commits/${REF}" --jq .sha)"; then
+            echo "::error::release: ref '${REF}' does not resolve to a commit." >&2
+            exit 1
+          fi
+          # `ahead` or `identical` from base=sha to head=default: the default branch
+          # contains the commit. Anything else is a commit consumers never saw on main,
+          # and the `Test self` run found for it below would be a pull-request run.
+          status="$(gh api "/repos/${REPOSITORY}/compare/${sha}...${DEFAULT_BRANCH}" \
+                      --jq .status)"
+          case "$status" in
+            ahead | identical) ;;
+            *)
+              echo "::error::release: ${sha} is not on ${DEFAULT_BRANCH}" \
+                   "(compare status '${status}')." >&2
+              exit 1
+              ;;
+          esac
+          echo "sha=${sha}" >>"$GITHUB_OUTPUT"
+          echo "releasing ${REF} = ${sha}"
+
+      # versioning.md step 1: a tag is only as good as the commit under it. `Test self`
+      # runs on every push to main, so a commit on main without a green run is either
+      # still in flight or broken — both are reasons to wait.
+      - name: Test self passed on the target commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          SHA: ${{ steps.target.outputs.sha }}
+        run: |
+          set -euo pipefail
+          green="$(gh api \
+            "/repos/${REPOSITORY}/actions/workflows/test-self.yml/runs?head_sha=${SHA}&status=success&per_page=1" \
+            --jq .total_count)"
+          if [ "$green" -eq 0 ]; then
+            echo "::error::release: no successful 'Test self' run for ${SHA}." \
+                 "Wait for it, or re-run it from the Actions tab." >&2
+            exit 1
+          fi
+
+      # The same guard as bump.yml's "Repoint the moving major tag": never carry the moving
+      # tag UP across a major. `released > moving`, not `!=`, because forge publishes `v1`
+      # while its own releases are still 0.x — below the moving tag repoints, above it
+      # does not.
+      - name: Decide whether the moving major tag moves
+        id: major
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          released_major="${VERSION#v}"
+          released_major="${released_major%%.*}"
+          moving_major="${MAJOR_TAG#v}"
+          moving_major="${moving_major%%.*}"
+          case "$moving_major" in
+            '' | *[!0-9]*)
+              echo "::error::release: MAJOR_TAG '${MAJOR_TAG}' does not look like vN." >&2
+              exit 1
+              ;;
+          esac
+          if [ "$released_major" -gt "$moving_major" ]; then
+            echo "::notice::${VERSION} is past ${MAJOR_TAG}; it will be tagged but" \
+                 "${MAJOR_TAG} stays where it is. Publish v${released_major} and migrate" \
+                 "consumers deliberately."
+            echo "move=false" >>"$GITHUB_OUTPUT"
+          else
+            echo "move=true" >>"$GITHUB_OUTPUT"
+          fi
+
+  release:
+    name: Tag the release
+    needs: check
+    if: ${{ !inputs.dry-run }}
+    runs-on: ubuntu-latest
+    steps:
+      # Only for the composite action; the release itself never touches the tree.
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Mint release token (GitHub App)
+        id: app-token
+        uses: ./actions/mint-app-token
+        with:
+          client-id: ${{ vars.GH_APP_CLIENT_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          repositories: ${{ github.event.repository.name }}
+
+      # POST, never PATCH: creating a ref that already exists fails with 422, so a
+      # version that appeared since the check job cannot be overwritten — and this step
+      # fails before the moving tag is touched.
+      - name: Create the version tag
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          REPOSITORY: ${{ github.repository }}
+          VERSION: ${{ inputs.version }}
+          SHA: ${{ needs.check.outputs.sha }}
+        run: |
+          set -euo pipefail
+          gh api "/repos/${REPOSITORY}/git/refs" \
+            -f "ref=refs/tags/${VERSION}" -f "sha=${SHA}" >/dev/null
+          echo "tagged ${VERSION} at ${SHA}"
+
+      # Lightweight ref, as in bump.yml: the API cannot nest a tag object inside another,
+      # which is the mistake the `^{}` peel in the hand-cut fallback exists to avoid.
+      # PATCH with force moves an existing ref; POST creates it on a repo that never had one.
+      - name: Repoint the moving major tag
+        if: needs.check.outputs.move-major == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          REPOSITORY: ${{ github.repository }}
+          SHA: ${{ needs.check.outputs.sha }}
+        run: |
+          set -euo pipefail
+          if gh api -X PATCH "/repos/${REPOSITORY}/git/refs/tags/${MAJOR_TAG}" \
+               -f "sha=${SHA}" -F force=true >/dev/null 2>&1; then
+            echo "repointed ${MAJOR_TAG} at ${SHA}"
+          elif gh api "/repos/${REPOSITORY}/git/refs" \
+                 -f "ref=refs/tags/${MAJOR_TAG}" -f "sha=${SHA}" >/dev/null; then
+            echo "created ${MAJOR_TAG} at ${SHA}"
+          else
+            echo "::error::release: could not point ${MAJOR_TAG} at ${SHA}." >&2
+            exit 1
+          fi
+
+      - name: Summarise
+        env:
+          VERSION: ${{ inputs.version }}
+          SHA: ${{ needs.check.outputs.sha }}
+          MOVED: ${{ needs.check.outputs.move-major }}
+        run: |
+          set -euo pipefail
+          {
+            echo "### Released \`${VERSION}\`"
+            echo
+            echo "- commit: \`${SHA}\`"
+            if [ "$MOVED" = "true" ]; then
+              echo "- moving tag: \`${MAJOR_TAG}\` -> \`${SHA}\`"
+            else
+              echo "- moving tag: \`${MAJOR_TAG}\` left in place (\`${VERSION}\` is past it)"
+            fi
+          } >>"$GITHUB_STEP_SUMMARY"
