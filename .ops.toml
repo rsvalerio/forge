@@ -4,3 +4,66 @@ statuses = ["Triage", "To Do", "In Progress", "Done"]
 zero_padded_ids = 4
 task_prefix = "TASK"
 backlog_directory = ".backlog"
+
+# `ops verify` is the local gate: test-self.yml's lint job plus the shell tests that run
+# without network or credentials. The lint steps call the same ci/lint.sh subcommands
+# as CI, so the two cannot drift; add a check there, then list it here and in CI.
+# `check-yaml` is the one local-only extra: it parses every YAML file, templates included,
+# which CI does not (ops is not installed there). Tools come from mise.toml.
+
+# actionlint reports on stdout; ops shows only a failing step's stderr.
+[commands.actionlint]
+program = "sh"
+args = ["-c", "actionlint 1>&2"]
+help = "Lint workflows (and every run: block, via shellcheck)"
+category = "Code Quality"
+
+[commands.lint-shellcheck]
+program = "ci/lint.sh"
+args = ["shellcheck"]
+help = "shellcheck every standalone script"
+category = "Code Quality"
+
+[commands.lint-executable]
+program = "ci/lint.sh"
+args = ["executable"]
+help = "Every script is executable"
+category = "Code Quality"
+
+[commands.lint-action-yml]
+program = "ci/lint.sh"
+args = ["action-yml"]
+help = "Every action directory has a well-formed action.yml"
+category = "Code Quality"
+
+[commands.lint-config-toml]
+program = "ci/lint.sh"
+args = ["config-toml"]
+help = "Shared configs parse as TOML"
+category = "Code Quality"
+
+[commands.lint-pinned-actions]
+program = "ci/lint.sh"
+args = ["pinned-actions"]
+help = "Third-party actions are SHA-pinned with a version comment"
+category = "Code Quality"
+
+[commands.test-pool-update]
+program = "actions/apt-pool-push/pool-update.test.sh"
+help = "apt-pool-push pool logic against a local stand-in repository"
+category = "Code Quality"
+
+[commands.verify]
+commands = [
+  "actionlint",
+  "lint-shellcheck",
+  "lint-executable",
+  "lint-action-yml",
+  "lint-config-toml",
+  "lint-pinned-actions",
+  "check-yaml",
+  "test-pool-update",
+]
+fail_fast = false
+help = "Run test-self's lint job and the local shell tests"
+category = "Code Quality"

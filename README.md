@@ -41,11 +41,15 @@ actions/                      # composite actions — step-level, run inside the
   publish-deb-dist.yml        #   dist custom publish job: deb-from-dist, then apt-pool-push
   publish-crates.yml          #   built, proven, and deliberately unadopted (PLAN.md §5)
   test-self.yml               #   forge's own CI
+ci/lint.sh                    # test-self's lint checks, shared with `ops verify`
 config/                       # canonical deny.toml / clippy.toml / rustfmt.toml
 templates/                    # SECURITY, CONTRIBUTING, CODE_OF_CONDUCT, issue + PR templates
 docs/
 plans/                        # design docs
 ```
+
+`ops verify` runs test-self's lint job and the local shell tests before you push; the tools
+it needs are pinned in `mise.toml` (`mise install`).
 
 Composite actions and reusable workflows are not interchangeable: an action is a *step*
 inside the caller's job; a reusable workflow is a whole *job* with its own runner.
@@ -77,6 +81,13 @@ jobs:
    that repo's regression into the shared version.
 5. **Reusable workflow nesting is capped at 4 levels.** The wrapper-calls-shared pattern
    uses 2. Do not stack further.
+6. **Third-party actions are pinned to a full commit SHA, with the version in a comment**
+   (`uses: actions/checkout@<40-hex sha> # v6.1.0`). These workflows hold the App private
+   key and publish releases, and every consumer inherits them, so a moved tag would run
+   unreviewed code with those credentials everywhere at once. Where ops pins the same
+   action, use the same SHA. Local `./` refs and forge's own refs are exempt (the latter
+   follow [docs/versioning.md](docs/versioning.md)). `ci/lint.sh pinned-actions` enforces
+   this in test-self and `ops verify`; bump a pin by resolving the new tag's commit.
 
 ## Status
 

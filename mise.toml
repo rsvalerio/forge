@@ -1,0 +1,8 @@
+# Tools `ops verify` needs, at the versions it is known green with. mise resolves them
+# per project, so the shellcheck that actionlint shells out to is found here even on a
+# machine with no global shellcheck default. `mise install` fetches them.
+# Keep actionlint in step with the `version:` pinned in test-self.yml's lint job.
+[tools]
+actionlint = "1.7.12"
+shellcheck = "0.11.0"
+yq = "4.53.6"
