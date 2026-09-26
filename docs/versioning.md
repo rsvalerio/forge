@@ -62,7 +62,7 @@ expression, so `rsvalerio/forge/actions/x@${{ inputs.forge-ref }}` is not valid 
 The way out is to make the *path* static and the *ref* dynamic:
 
 ```yaml
-- uses: actions/checkout@v6
+- uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
   with:
     repository: rsvalerio/forge
     ref: ${{ inputs.forge-ref }}

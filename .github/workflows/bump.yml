@@ -147,7 +147,7 @@ jobs:
       commit: ${{ steps.push.outputs.sha }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           ref: ${{ inputs.branch }}
           fetch-depth: 0
@@ -160,7 +160,7 @@ jobs:
       # expression) but the ref is not, which is what lets the testbed float on main.
       # This must come AFTER the checkout above, which cleans the workspace root.
       - name: Check out forge
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           repository: rsvalerio/forge
           ref: ${{ inputs.forge-ref }}
@@ -226,7 +226,7 @@ jobs:
 
       - name: Install ${{ steps.tools.outputs.missing }}
         if: steps.tools.outputs.missing != ''
-        uses: taiki-e/install-action@v2
+        uses: taiki-e/install-action@82cd3e7658a6f96c86c0234aeeda1748937cb0a1 # v2.85.13
         with:
           tool: ${{ steps.tools.outputs.missing }}
 
@@ -504,7 +504,7 @@ jobs:
     steps:
       # Only forge is checked out — this job touches the API, never the tree.
       - name: Check out forge
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           repository: rsvalerio/forge
           ref: ${{ inputs.forge-ref }}

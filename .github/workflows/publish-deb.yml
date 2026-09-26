@@ -81,12 +81,12 @@ jobs:
     name: Publish .deb
     runs-on: ${{ inputs.runs-on }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           persist-credentials: false
 
       - name: Check out forge
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           repository: rsvalerio/forge
           ref: ${{ inputs.forge-ref }}

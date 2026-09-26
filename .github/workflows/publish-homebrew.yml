@@ -62,7 +62,7 @@ jobs:
       DRY_RUN: ${{ inputs.dry-run }}
     steps:
       - name: Check out forge
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           repository: rsvalerio/forge
           ref: ${{ inputs.forge-ref }}
@@ -85,7 +85,7 @@ jobs:
           repositories: ${{ steps.tap.outputs.name }}
 
       - name: Check out the tap
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           repository: ${{ inputs.tap-repository }}
           token: ${{ steps.tap-token.outputs.token }}
@@ -93,7 +93,7 @@ jobs:
           path: tap
 
       - name: Fetch homebrew formulae
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           pattern: artifacts-*
           path: tap/Formula/
