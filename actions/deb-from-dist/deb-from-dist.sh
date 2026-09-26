@@ -34,6 +34,8 @@ OUTPUT_DIR="${OUTPUT_DIR:?}"
 [ -n "${MAINTAINER//[[:space:]]/}" ] || err "'maintainer' is required."
 [[ "$PACKAGE" =~ ^[a-z0-9][a-z0-9+.-]+$ ]] || err "'$PACKAGE' is not a valid Debian package name."
 [[ "$INSTALL_PATH" == /* ]] || err "'install-path' must be absolute, got '$INSTALL_PATH'."
+# `..` would climb out of the staging tree and write onto the runner itself.
+[[ "/${INSTALL_PATH}/" != */../* ]] || err "'install-path' must not contain '..', got '$INSTALL_PATH'."
 
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
@@ -92,7 +94,9 @@ done
 
 # Debian's extended description: continuation lines start with a space, blank ones are " .".
 control_description() {
-  local first=true line
+  local first=true line description="$DESCRIPTION"
+  # A YAML `|` block ends in a newline, which would otherwise become a trailing " .".
+  while [[ "$description" == *$'\n' ]]; do description="${description%$'\n'}"; done
   while IFS= read -r line || [ -n "$line" ]; do
     if $first; then
       printf 'Description: %s\n' "$line"
@@ -102,7 +106,7 @@ control_description() {
     else
       printf ' %s\n' "$line"
     fi
-  done <<<"$DESCRIPTION"
+  done <<<"$description"
 }
 
 mkdir -p "$OUTPUT_DIR"
@@ -124,6 +128,11 @@ for triple in "${targets[@]}"; do
   tar -xzf "$tarball" -C "$unpacked"
   root="${unpacked}/${APP}-${triple}"
   [ -f "${root}/${APP}" ] || err "$(basename "$tarball") has no ${APP}-${triple}/${APP} binary."
+  # `install` follows symlinks, so a link in the archive would package whatever runner
+  # file it points at. dist archives contain none; refuse any.
+  if [ -n "$(find "$unpacked" -type l -print -quit)" ]; then
+    err "$(basename "$tarball") contains symbolic links; refusing to package it."
+  fi
 
   stage="${work}/stage-${triple}"
   install -d -m 0755 "$stage" "${stage}/DEBIAN" "${stage}${INSTALL_PATH}"
