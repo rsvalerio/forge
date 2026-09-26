@@ -31,11 +31,14 @@ actions/                      # composite actions — step-level, run inside the
   signed-commit/              #   GitHub-signed commits via GraphQL createCommitOnBranch
   mint-app-token/             #   App tokens with mandatory least-privilege scoping
   app-bot-identity/           #   resolve ${APP_SLUG}[bot] and configure git
+  apt-pool-push/              #   commit .debs to the apt pool in one commit, with retention
+  deb-from-dist/              #   repackage cargo-dist linux-gnu tarballs into per-arch .debs
 .github/workflows/            # reusable workflows — job-level, own runner
   rust-ci.yml                 #   fmt / check / clippy / build / test / deny
   bump.yml                    #   cocogitto version bump, signed commit + tag
   publish-homebrew.yml
-  publish-deb.yml
+  publish-deb.yml             #   build a .deb with the consumer's command, then apt-pool-push
+  publish-deb-dist.yml        #   dist custom publish job: deb-from-dist, then apt-pool-push
   publish-crates.yml          #   built, proven, and deliberately unadopted (PLAN.md §5)
   test-self.yml               #   forge's own CI
 config/                       # canonical deny.toml / clippy.toml / rustfmt.toml
@@ -78,7 +81,7 @@ jobs:
 ## Status
 
 Everything in [plans/PLAN.md](plans/PLAN.md) that lives *inside this repository* is
-implemented: the three composite actions, the five reusable workflows, `test-self.yml`,
+implemented: the five composite actions, the six reusable workflows, `test-self.yml`,
 the shared configs, the templates and the docs.
 
 Deliberately not done yet:
