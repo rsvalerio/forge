@@ -84,4 +84,35 @@ echo "keep-versions must be numeric"
 KEEP_VERSIONS=x VERSION=1 DEBS=debs/my-haproxy_1.10.0_amd64.deb run \
   && fail "non-numeric keep-versions accepted"
 
+echo "a file that is not a .deb is rejected"
+echo "not a package" >debs/fake_1.0_amd64.deb
+VERSION=1 DEBS=debs/fake_1.0_amd64.deb run && fail "invalid .deb accepted"
+[ -e apt/pool/fake_1.0_amd64.deb ] && fail "invalid .deb reached the pool"
+
+echo "an exported GIT_DIR does not redirect the pool commit"
+mkdeb gitdir-probe 1.0 all
+before="$(commits)"
+GIT_DIR="$work/nowhere" VERSION=1.0 DEBS=debs/gitdir-probe_1.0_all.deb run \
+  || fail "run with GIT_DIR exported failed"
+[ "$(commits)" = $((before + 1)) ] || fail "GIT_DIR run did not land in the apt repo"
+
+echo "a push rejected by a concurrent publisher is restaged and retried"
+git clone -q remote.git other 2>/dev/null
+git -C other config user.name other
+git -C other config user.email other@example.invalid
+mkdeb other 1.0 all
+cp debs/other_1.0_all.deb other/pool/
+git -C other add -A
+git -C other commit -q -m "other: add 1.0"
+git -C other push -q origin HEAD 2>/dev/null
+# apt/ has not fetched, so its first push is rejected.
+mkdeb my-haproxy 3.0.0 amd64
+before="$(commits)"
+KEEP_VERSIONS=2 VERSION=3.0.0 DEBS=debs/my-haproxy_3.0.0_amd64.deb run || fail "retry did not recover"
+[ "$(commits)" = $((before + 1)) ] || fail "expected exactly one new commit after the retry"
+tree="$(git -C remote.git ls-tree --name-only HEAD pool/)"
+grep -q 'pool/other_1.0_all.deb' <<<"$tree" || fail "retry dropped the concurrent publisher's file"
+grep -q 'pool/my-haproxy_3.0.0_amd64.deb' <<<"$tree" || fail "retry did not publish"
+grep -q 'pool/my-haproxy_1.2.0_amd64.deb' <<<"$tree" && fail "retention not reapplied on retry"
+
 echo "ok"
