@@ -62,7 +62,7 @@ expression, so `rsvalerio/forge/actions/x@${{ inputs.forge-ref }}` is not valid 
 The way out is to make the *path* static and the *ref* dynamic:
 
 ```yaml
-- uses: actions/checkout@v6
+- uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
   with:
     repository: rsvalerio/forge
     ref: ${{ inputs.forge-ref }}
@@ -89,30 +89,78 @@ adding a new workflow or action, or clarifying documentation.
 
 ## Cutting a release
 
-1. Testbed green on `main`.
-2. Tag `vX.Y.Z`.
-3. **The moving major tag repoints itself.** Callers of the shared `bump.yml` pass
-   `major-tag: v1` and the workflow points it at the release it just cut, as a
-   lightweight ref, in the same job that created the version tag.
+Run the **Release** workflow (`.github/workflows/release.yml`) from the Actions tab, with
+the version to cut (`vX.Y.Z`) and optionally the ref to cut it from (default `main`). Tick
+`dry-run` to run every check without writing a ref.
 
-   This step used to be manual, and skipping it once is what put `v1` on `v0.1.2` while
-   `v0.2.0` shipped: every consumer following the `@v1` convention silently kept running
-   the older workflow, and `ops` worked around it with an exact pin that did not pin the
-   composite actions anyway. A convention that tells consumers not to edit anything only
-   holds if the tag they pin moves without anyone remembering to move it.
+It does in one run what used to be a checklist. Every check below runs **before any ref
+is written**, so a refusal leaves the repository untouched:
 
-   For a release cut by hand, the equivalent is:
-   ```bash
-   git tag -f -m "v1 -> vX.Y.Z" v1 'vX.Y.Z^{}' && git push -f origin v1
-   ```
-   Both extras earn their keep. `^{}` peels the annotated release tag to the commit it
-   points at — without it you create a *tag object pointing at a tag object*, which git
-   warns about and which consumers resolve inconsistently. `-m` supplies the message that
-   `tag.gpgsign = true` makes mandatory; without it git drops you into `$EDITOR` mid-release.
-   Quote the `^{}` — zsh treats both characters as glob syntax. The workflow sidesteps all
-   of this by creating a lightweight ref through the API, which cannot nest.
-4. For a major bump, do **not** repoint `v1` — publish `v2` and migrate consumers one at a
+1. **Testbed green on `main`.** The target commit must be on the default branch and have a
+   successful `Test self` run. A commit whose run is still in flight is refused; wait and
+   dispatch again.
+2. **Tag `vX.Y.Z`.** The version must be plain `vMAJOR.MINOR.PATCH` (no leading zeros, no
+   pre-release suffix), must not exist, and must be greater than every existing release
+   tag. A patch for an older line, cut after a newer release, is therefore refused — cut
+   it by hand (below) if that ever becomes necessary.
+3. **The moving major tag repoints itself.** `v1` is moved to the release in the same run,
+   as a lightweight ref. This step used to be manual, and skipping it once is what put `v1`
+   on `v0.1.2` while `v0.2.0` shipped: every consumer following the `@v1` convention
+   silently kept running the older workflow, and `ops` worked around it with an exact pin
+   that did not pin the composite actions anyway. A convention that tells consumers not to
+   edit anything only holds if the tag they pin moves without anyone remembering to move
+   it. Consumers releasing through the shared `bump.yml` get the same behaviour by passing
+   `major-tag: v1`.
+4. **A major bump does not repoint `v1`** — publish `v2` and migrate consumers one at a
    time, so a bad major cannot take every pipeline down at once. The workflow enforces
-   this: it compares the major of the tag it just cut against `major-tag` and skips the
-   repoint with a notice when the release has moved past it. A release *below* the moving
-   tag still repoints, which is the `0.x` case forge itself is in today.
+   this: it compares the major of the version against `MAJOR_TAG` (set at the top of
+   `release.yml`) and tags the release but leaves the moving tag in place, with a notice,
+   when the release has moved past it. A release *below* the moving tag still repoints,
+   which is the `0.x` case forge itself is in today. Moving the release line to `v2` is a
+   deliberate edit of `MAJOR_TAG`, made together with publishing `v2`.
+
+Two dispatches never race: runs share a concurrency group and queue. The version tag is
+created with a plain create, which fails if the ref already exists, so it can never
+overwrite a tag — and a failure there stops the run before `v1` is touched.
+The one partial outcome is the reverse: `vX.Y.Z` is created, then repointing `v1` fails.
+A re-run is refused (the version now exists), so repoint `v1` by hand with the second
+command of the [fallback](#fallback-cutting-a-release-by-hand).
+
+The workflow writes with the GitHub App token (`GH_APP_PRIVATE_KEY`,
+`vars.GH_APP_CLIENT_ID`), scoped to this repository; the App needs `contents: write` on
+forge, which `Test self`'s `signed-commit` job already relies on. No ruleset covers tags
+today — if one is added, the App must be on its bypass list.
+
+### Tags are unsigned
+
+Tags created through the API are lightweight refs with no signature, unlike the SSH-signed
+annotated tags cut by hand up to `v0.3.2`. That is accepted: the trust a consumer places
+in `@v1` or `@vX.Y.Z` comes from who can write refs to this repository — the App and the
+maintainers — not from a tag signature, which GitHub does not show for lightweight refs
+and which nothing in a consumer's `uses:` resolution checks. The commit under the tag is
+still whatever landed on `main` through its protections. Consumers who need a
+cryptographic pin already have one: the commit SHA (see
+[SHA-pinning](#sha-pinning-takes-two-refs-not-one)).
+
+### Fallback: cutting a release by hand
+
+If the workflow is unavailable (the App token cannot be minted, Actions is down), the
+hand-cut equivalent is:
+
+```bash
+git tag -s -m "vX.Y.Z" vX.Y.Z <sha>
+git tag -f -s -m "v1 -> vX.Y.Z" v1 'vX.Y.Z^{}' && git push origin vX.Y.Z && git push -f origin v1
+```
+
+Run the same checks the workflow would have: `Test self` green on `<sha>`, on `main`, the
+version new and greater than every existing release tag, and no `v1` repoint for a major
+above it. The one exception is a patch for an older line (step 2 above): it must be
+greater than every tag on *its own* line, and you run only the first command. `v1` stays
+on the newest release, and repointing it at an older one would roll every consumer back.
+
+Both extras earn their keep. `^{}` peels the annotated release tag to the commit it
+points at — without it you create a *tag object pointing at a tag object*, which git
+warns about and which consumers resolve inconsistently. `-m` supplies the message that
+`tag.gpgsign = true` makes mandatory; without it git drops you into `$EDITOR` mid-release.
+Quote the `^{}` — zsh treats both characters as glob syntax. The workflow sidesteps all
+of this by creating a lightweight ref through the API, which cannot nest.

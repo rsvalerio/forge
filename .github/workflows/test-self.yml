@@ -19,60 +19,35 @@ jobs:
     name: Lint workflows and actions
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           persist-credentials: false
 
       # actionlint understands workflow syntax, expression contexts and `uses:` refs, and
-      # runs shellcheck over every `run:` block.
+      # runs shellcheck over every `run:` block. Version matches mise.toml, so `ops verify`
+      # runs the same actionlint locally.
       - name: actionlint
-        uses: raven-actions/actionlint@v2
+        uses: raven-actions/actionlint@3d39aea434753780c3b3d4a1a31c854b4dbf49d7 # v2.2.0
         with:
+          version: 1.7.12
           fail-on-error: true
 
+      # The remaining checks live in ci/lint.sh so `ops verify` runs them verbatim; add a
+      # check there and list it both here and in .ops.toml.
       - name: shellcheck standalone scripts
-        run: |
-          set -euo pipefail
-          shopt -s globstar nullglob
-          scripts=(actions/**/*.sh)
-          printf 'checking %s\n' "${scripts[@]}"
-          shellcheck "${scripts[@]}"
+        run: ci/lint.sh shellcheck
 
       - name: Every script is executable
-        run: |
-          set -euo pipefail
-          shopt -s globstar nullglob
-          status=0
-          for f in actions/**/*.sh; do
-            [ -x "$f" ] || { echo "::error file=$f::not executable (chmod +x)"; status=1; }
-          done
-          exit $status
+        run: ci/lint.sh executable
 
       - name: Every action directory has a well-formed action.yml
-        run: |
-          set -euo pipefail
-          status=0
-          for dir in actions/*/; do
-            f="${dir}action.yml"
-            if [ ! -f "$f" ]; then
-              echo "::error::${dir} has no action.yml"; status=1; continue
-            fi
-            for key in name description runs; do
-              yq -e ".${key}" "$f" >/dev/null 2>&1 \
-                || { echo "::error file=$f::missing required key '${key}'"; status=1; }
-            done
-            [ "$(yq -r '.runs.using' "$f")" = "composite" ] \
-              || { echo "::error file=$f::runs.using must be 'composite'"; status=1; }
-          done
-          exit $status
+        run: ci/lint.sh action-yml
 
       - name: Shared configs parse as TOML
-        run: |
-          set -euo pipefail
-          for f in config/*.toml; do
-            yq -p toml -o json "$f" >/dev/null || { echo "::error file=$f::invalid TOML"; exit 1; }
-            echo "ok: $f"
-          done
+        run: ci/lint.sh config-toml
+
+      - name: Third-party actions are SHA-pinned
+        run: ci/lint.sh pinned-actions
 
   # The pool commit is where a mistake costs most: retention deletes published packages,
   # so the pruning rules are tested against a local stand-in for the apt repository.
@@ -80,7 +55,7 @@ jobs:
     name: apt-pool-push pool logic
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           persist-credentials: false
 
@@ -93,7 +68,7 @@ jobs:
     name: deb-from-dist against an ops release
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           persist-credentials: false
 
@@ -173,7 +148,7 @@ jobs:
     # Forks cannot mint the App token, and the secret is not exposed to them anyway.
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           fetch-depth: 0
           persist-credentials: false
