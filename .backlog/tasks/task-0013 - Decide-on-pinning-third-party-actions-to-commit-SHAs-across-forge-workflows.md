@@ -4,6 +4,7 @@ title: 'Decide on pinning third-party actions to commit SHAs across forge workfl
 status: Triage
 assignee: []
 created_date: '2026-09-26 18:31'
+updated_date: '2026-09-26 18:35'
 labels:
   - ci
   - security
@@ -32,3 +33,9 @@ ordinal: 1000
 - [ ] #1 A pinning policy for third-party actions is recorded in README design rules
 - [ ] #2 Every uses: reference in forge follows that policy, with a version comment beside each SHA if SHAs are chosen
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+publish-deb-dist.yml was pinned on PR #12 (checkout v6.1.0, download-artifact v7.0.0, upload-artifact v6.0.0, the same SHAs ops pins). The rest of forge still uses tags; this task now covers making the repo consistent with that.
+<!-- SECTION:NOTES:END -->
