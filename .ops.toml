@@ -8,7 +8,7 @@ backlog_directory = ".backlog"
 # `ops verify` is the local gate: test-self.yml's lint job plus the shell tests that run
 # without network or credentials. The lint steps call the same ci/lint.sh subcommands
 # as CI, so the two cannot drift; add a check there, then list it here and in CI.
-# `check-yaml` is the one local-only extra: it parses every YAML file, templates included,
+# `lint-yaml` (ops check-yaml) is the one local-only extra: it parses every YAML file, templates included,
 # which CI does not (ops is not installed there). Tools come from mise.toml.
 
 # actionlint reports on stdout; ops shows only a failing step's stderr.
@@ -48,6 +48,13 @@ args = ["pinned-actions"]
 help = "Third-party actions are SHA-pinned with a version comment"
 category = "Code Quality"
 
+# The builtin reports the failing file on stdout, which ops hides for a failing step.
+[commands.lint-yaml]
+program = "sh"
+args = ["-c", "ops check-yaml 1>&2"]
+help = "Every YAML file parses (templates included)"
+category = "Code Quality"
+
 [commands.test-pool-update]
 program = "actions/apt-pool-push/pool-update.test.sh"
 help = "apt-pool-push pool logic against a local stand-in repository"
@@ -61,7 +68,7 @@ commands = [
   "lint-action-yml",
   "lint-config-toml",
   "lint-pinned-actions",
-  "check-yaml",
+  "lint-yaml",
   "test-pool-update",
 ]
 fail_fast = false
