@@ -1,10 +1,10 @@
 ---
 id: TASK-0002
 title: 'Extract apt-pool-push composite action that commits one or more .debs to the apt pool'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-26 16:33'
-updated_date: '2026-09-26 16:50'
+updated_date: '2026-09-26 17:00'
 labels:
   - deb
   - apt
@@ -42,9 +42,16 @@ Behaviour:
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 actions/apt-pool-push pushes N .deb files to the pool in a single commit
-- [ ] #2 Re-running with identical files is a no-op that exits 0
-- [ ] #3 dry-run stages the files and shows the diff without committing or pushing
-- [ ] #4 publish-deb.yml delegates to the action with no change to its inputs
-- [ ] #5 docs/consuming.md documents the action
+- [x] #1 actions/apt-pool-push pushes N .deb files to the pool in a single commit
+- [x] #2 Re-running with identical files is a no-op that exits 0
+- [x] #3 dry-run stages the files and shows the diff without committing or pushing
+- [x] #4 publish-deb.yml delegates to the action with no change to its inputs
+- [x] #5 docs/consuming.md documents the action
+
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+actions/apt-pool-push: pool logic in pool-update.sh (shellchecked, tested locally against a scratch bare repo: 2 debs -> 1 commit, rerun no-op exit 0, dry-run stages without commit, missing deb fails). Sibling helpers (mint-app-token, app-bot-identity) are copied into the workspace so they resolve at the same ref the action was loaded from. publish-deb.yml inputs unchanged; its now-unused `file` output removed.
+<!-- SECTION:NOTES:END -->

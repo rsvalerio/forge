@@ -1,10 +1,10 @@
 ---
 id: TASK-0009
 title: 'code-review-plan-wave0'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-26 16:49'
-updated_date: '2026-09-26 16:50'
+updated_date: '2026-09-26 17:08'
 labels:
   - code-review-wave
 dependencies:
@@ -44,4 +44,7 @@ apt publishing from cargo-dist: extract apt-pool-push (0002), add retention to i
 
 <!-- SECTION:NOTES:BEGIN -->
 Overlaps: none by file. TASK-0010 (wave1) is scoped to the .github/workflows directory, which contains this wave's publish-deb.yml and publish-deb-dist.yml. Its likely new file (release.yml) is distinct.
+
+Branch: code-review/TASK-0009
+
 <!-- SECTION:NOTES:END -->

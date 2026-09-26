@@ -1,10 +1,10 @@
 ---
 id: TASK-0003
 title: 'Bound apt pool growth before ops publishes (retention in apt-pool-push, or move pool out of git)'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-26 16:33'
-updated_date: '2026-09-26 16:50'
+updated_date: '2026-09-26 17:08'
 labels:
   - deb
   - apt
@@ -37,8 +37,21 @@ Either way:
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 A decision between retention and moving the pool out of git is recorded in the task notes
-- [ ] #2 Publishing a new version drops versions of that package+arch older than the newest N in the same commit (if retention is chosen)
-- [ ] #3 Packages whose names are prefixes of other packages (my-haproxy vs my-haproxy-sites) are pruned independently
-- [ ] #4 The retention rule is documented for rsvalerio/apt consumers
+- [x] #1 A decision between retention and moving the pool out of git is recorded in the task notes
+- [x] #2 Publishing a new version drops versions of that package+arch older than the newest N in the same commit (if retention is chosen)
+- [x] #3 Packages whose names are prefixes of other packages (my-haproxy vs my-haproxy-sites) are pruned independently
+- [x] #4 The retention rule is documented for rsvalerio/apt consumers
+
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Decision: retention in apt-pool-push (option 1), not moving the pool out of git. Retention is a bounded change inside forge that keeps the current apt design. Taking the pool out of git would need a coordinated change across rsvalerio/apt's publish.yml and every publisher, with no benefit until the pool itself is the bottleneck.
+Implementation: `keep-versions` input (default 0 = keep all, so publish-deb/oxydraw is unchanged; publish-deb-dist defaults to 3). In the same commit it `git rm`s versions of each published package+arch beyond the newest N, sorted with dpkg --compare-versions. Pool filenames are split on `_`, so my-haproxy and my-haproxy-sites are pruned independently. A backfill older than the newest N warns and pushes nothing.
+Tests: actions/apt-pool-push/pool-update.test.sh, run by the new test-self.yml job `apt-pool-push`.
+AC4: the retention rule and the `squash-history.sh` guidance are documented in forge docs/consuming.md ("Retention"), including what apt users see (pinned `pkg=<old>` stops resolving). The mirror in rsvalerio/apt's own README is a cross-repo edit and is filed as a Triage follow-up.
+
+apt README mirror filed as TASK-0011.
+
+<!-- SECTION:NOTES:END -->

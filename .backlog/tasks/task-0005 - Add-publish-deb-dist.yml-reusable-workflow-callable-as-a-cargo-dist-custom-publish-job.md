@@ -1,10 +1,10 @@
 ---
 id: TASK-0005
 title: 'Add publish-deb-dist.yml reusable workflow callable as a cargo-dist custom publish job'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-26 16:34'
-updated_date: '2026-09-26 16:50'
+updated_date: '2026-09-26 17:08'
 labels:
   - deb
   - cargo-dist
@@ -49,9 +49,21 @@ Consumers must also add the new job to `announce.needs` and to its `if:` guard. 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Workflow accepts dist's plan input and derives version and app name from it
-- [ ] #2 Packages every linux-gnu target from workflow artifacts (no dependency on the GitHub Release existing)
-- [ ] #3 All per-arch .debs land in the apt pool in one commit; dry-run and apt-repository override work
-- [ ] #4 Built .debs are uploaded as a workflow artifact
-- [ ] #5 docs/consuming.md shows the local wrapper, the publish-jobs line, and the announce needs/if edit
+- [x] #1 Workflow accepts dist's plan input and derives version and app name from it
+- [x] #2 Packages every linux-gnu target from workflow artifacts (no dependency on the GitHub Release existing)
+- [x] #3 All per-arch .debs land in the apt pool in one commit; dry-run and apt-repository override work
+- [x] #4 Built .debs are uploaded as a workflow artifact
+- [x] #5 docs/consuming.md shows the local wrapper, the publish-jobs line, and the announce needs/if edit
+
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+.github/workflows/publish-deb-dist.yml: reads the plan (the release with linux-gnu tarballs, `app` input to disambiguate), downloads artifacts-* to RUNNER_TEMP, runs deb-from-dist (artifacts-dir mode), uploads the .debs as `deb-<app>-<version>` before pushing, then runs apt-pool-push (one commit, keep-versions default 3; dry-run/apt-repository/pool-path passed through). A job-level `if:` repeats the prerelease guard.
+Deviation: the version comes from the selected release's `app_version`, not `announcement_tag`. In a multi-package workspace the tag is `<app>-v<ver>`, which is not a Debian version. For single-app workspaces the two are identical.
+Verification: actionlint clean. The jq selection was checked against the real ops v0.65.0 dist-manifest.json. The components it composes have local and CI tests (pool-update.test.sh and the deb-from-dist test-self job). An end-to-end dist run needs a consumer wiring, which is cross-repo (forge-testbed) and is filed as a Triage follow-up.
+
+End-to-end dist wiring is already tracked by TASK-0006 (forge-testbed).
+
+<!-- SECTION:NOTES:END -->
