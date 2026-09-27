@@ -23,14 +23,18 @@ jobs:
         with:
           persist-credentials: false
 
-      # actionlint understands workflow syntax, expression contexts and `uses:` refs, and
-      # runs shellcheck over every `run:` block. Version matches mise.toml, so `ops verify`
-      # runs the same actionlint locally.
-      - name: actionlint
-        uses: raven-actions/actionlint@3d39aea434753780c3b3d4a1a31c854b4dbf49d7 # v2.2.0
+      # Installs actionlint, shellcheck and yq at the versions mise.toml pins — the same
+      # file `ops verify` reads — so CI and the local gate lint with identical tools
+      # instead of whatever the runner image ships. `version` pins mise itself.
+      - name: Install pinned tools (mise.toml)
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
-          version: 1.7.12
-          fail-on-error: true
+          version: 2026.9.14
+
+      # actionlint understands workflow syntax, expression contexts and `uses:` refs, and
+      # runs shellcheck over every `run:` block.
+      - name: actionlint
+        run: actionlint
 
       # The remaining checks live in ci/lint.sh so `ops verify` runs them verbatim; add a
       # check there and list it both here and in .ops.toml.
