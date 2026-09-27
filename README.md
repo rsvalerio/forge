@@ -49,7 +49,8 @@ plans/                        # design docs
 ```
 
 `ops verify` runs test-self's lint job and the local shell tests before you push; the tools
-it needs are pinned in `mise.toml` (`mise install`).
+it needs are pinned in `mise.toml` (`mise install`), which test-self's lint job installs
+from too, so both run the same actionlint and shellcheck.
 
 Composite actions and reusable workflows are not interchangeable: an action is a *step*
 inside the caller's job; a reusable workflow is a whole *job* with its own runner.
@@ -87,7 +88,9 @@ jobs:
    unreviewed code with those credentials everywhere at once. Where ops pins the same
    action, use the same SHA. Local `./` refs and forge's own refs are exempt (the latter
    follow [docs/versioning.md](docs/versioning.md)). `ci/lint.sh pinned-actions` enforces
-   this in test-self and `ops verify`; bump a pin by resolving the new tag's commit.
+   this in test-self and `ops verify`. Dependabot (`.github/dependabot.yml`) proposes
+   bumps weekly, for workflows and every composite action, as one grouped PR that moves
+   the SHA and its version comment together; a hand bump resolves the new tag's commit.
 
 ## Status
 

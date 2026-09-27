@@ -1,0 +1,19 @@
+# Proposes bumps for the SHA pins README design rule 6 requires. Dependabot resolves the
+# new tag to its commit SHA and rewrites the `# vX.Y.Z` comment alongside it, so a bump PR
+# still passes `ci/lint.sh pinned-actions`.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    # "/" covers .github/workflows/*.yml; any other directory is scanned for its own
+    # action.yml, so the glob picks up every composite action, present and future.
+    directories:
+      - "/"
+      - "/actions/*"
+    schedule:
+      interval: weekly
+    # One PR per week for every action, so a bump is reviewed and lands everywhere at once.
+    groups:
+      github-actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: "ci"
