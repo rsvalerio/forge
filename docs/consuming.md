@@ -534,9 +534,13 @@ block (design rule 3):
       plan: ${{ needs.plan.outputs.val }}
     secrets:
       GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
+    # A job-level block sets every scope it omits to `none`, and a called workflow can
+    # only narrow what its caller grants. publish-deb-dist declares `contents: read`,
+    # so grant exactly that. No write scope is needed: the apt push uses the GitHub
+    # App token the workflow mints itself. Do not copy dist's homebrew block
+    # (`id-token` + `packages` only), which leaves `contents` at `none`.
     permissions:
-      "id-token": "write"
-      "packages": "write"
+      "contents": "read"
 ```
 
 Then make `announce` wait for it, and still run when it skips itself on a prerelease:

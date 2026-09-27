@@ -4,7 +4,7 @@ title: 'Wire publish-deb-dist into forge-testbed release.yml as a dry-run custom
 status: To Do
 assignee: []
 created_date: '2026-09-26 16:34'
-updated_date: '2026-09-26 19:23'
+updated_date: '2026-09-27 09:25'
 labels:
   - deb
   - cargo-dist
@@ -39,3 +39,9 @@ This is the gate before any real consumer adopts it: a testbed release must go g
 - [ ] #3 dry-run against rsvalerio/apt-testbed stages both files in one diff without pushing
 - [ ] #4 announce still waits on and tolerates a skipped custom-publish-deb
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Evidence from the first real consumer (ops TASK-2302), 2026-09-27. ops release v0.68.0 (rsvalerio/ops run 36277531411) ran custom-publish-deb -> publish-deb-dist@v1 with dry-run: true against rsvalerio/apt. It ran after host and before announce, and announce waited for it and passed. It produced ops_0.68.0_amd64.deb and ops_0.68.0_arm64.deb; both install with apt-get install ./file.deb on debian:bookworm-slim (amd64 native, arm64 under qemu) and run. pool-update.sh staged both files in one diff without pushing. Not covered: the forge-testbed wiring itself, rsvalerio/apt-testbed as the target, and announce with a skipped custom-publish-deb (AC #4). ops has since dropped dry-run (ops PR #72). Also found: the consuming.md release.yml example omitted contents: read (fixed on branch docs/deb-dist-contents-read).
+<!-- SECTION:NOTES:END -->
