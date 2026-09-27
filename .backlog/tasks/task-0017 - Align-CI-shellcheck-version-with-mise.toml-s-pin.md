@@ -1,10 +1,10 @@
 ---
 id: TASK-0017
 title: 'Align CI shellcheck version with mise.toml''s pin'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-26 19:42'
-updated_date: '2026-09-27 12:31'
+updated_date: '2026-09-27 13:17'
 labels:
   - ci
   - tooling
@@ -31,5 +31,12 @@ ordinal: 1000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 test-self's lint job runs the same shellcheck version mise.toml pins, or the doc states why they differ
+- [x] #1 test-self's lint job runs the same shellcheck version mise.toml pins, or the doc states why they differ
+
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+test-self lint job now installs actionlint/shellcheck/yq from mise.toml via jdx/mise-action (SHA-pinned v4.3.0, mise 2026.9.14) and runs actionlint directly; raven-actions/actionlint dropped. mise.toml is the single source of truth; its comment and README updated.
+<!-- SECTION:NOTES:END -->
