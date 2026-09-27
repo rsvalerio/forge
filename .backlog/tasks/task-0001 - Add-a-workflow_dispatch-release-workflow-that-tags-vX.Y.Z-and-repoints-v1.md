@@ -1,10 +1,10 @@
 ---
 id: TASK-0001
 title: 'Add a workflow_dispatch release workflow that tags vX.Y.Z and repoints v1'
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-09-26 10:04'
-updated_date: '2026-09-26 19:40'
+updated_date: '2026-09-26 20:43'
 labels:
   - ci
   - release
@@ -45,7 +45,7 @@ Either way:
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Running the workflow from the Actions tab with a version creates vX.Y.Z on the chosen ref and moves v1 to it
+- [x] #1 Running the workflow from the Actions tab with a version creates vX.Y.Z on the chosen ref and moves v1 to it
 - [x] #2 A release whose major is above v1's is tagged but does not move v1
 - [x] #3 An existing or non-increasing version fails before any ref is written
 - [x] #4 docs/versioning.md describes the workflow as the primary release path
@@ -66,4 +66,7 @@ Verification (no live dispatch, per run instructions):
 - AC4: docs/versioning.md updated.
 
 OPEN — AC1 needs a live run and cannot be proven locally: workflow_dispatch only works once release.yml is on the default branch. After the run PR merges to main: dispatch Release with dry-run=true (confirms checks pass on GitHub), then a real release (e.g. next vX.Y.Z), and confirm vX.Y.Z and v1 both point at the chosen commit (`git ls-remote --tags origin`). Then check AC1 and close this task and wave TASK-0010.
+
+AC1 verified live 2026-09-26: dry run 36270019267 (check passed, tag job skipped), then release run 36270472287 tagged v0.4.0 and repointed v1; both resolve to bad5c5e (main, PR #13).
+
 <!-- SECTION:NOTES:END -->

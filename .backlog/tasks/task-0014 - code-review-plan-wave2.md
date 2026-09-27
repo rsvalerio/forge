@@ -1,10 +1,10 @@
 ---
 id: TASK-0014
 title: 'code-review-plan-wave2'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-26 19:23'
-updated_date: '2026-09-26 19:32'
+updated_date: '2026-09-27 12:31'
 labels:
   - code-review-wave
 dependencies:
@@ -38,5 +38,7 @@ forge-testbed dry-run gate for publish-deb-dist (0006): must go green before con
 Overlaps: none (docs/consuming.md is not in any other open wave; wave1 TASK-0010 = .github/workflows, docs/versioning.md)
 
 Scope reduced 2026-09-26: TASK-0007 moved to ops (TASK-2302), TASK-0008 to my-cloud (TASK-3), TASK-0011 to apt (TASK-0001). Only the forge-testbed gate TASK-0006 remains.
+
+Closed 2026-09-27: its only member TASK-0006 was closed as superseded by ops TASK-2302's live adoption.
 
 <!-- SECTION:NOTES:END -->
