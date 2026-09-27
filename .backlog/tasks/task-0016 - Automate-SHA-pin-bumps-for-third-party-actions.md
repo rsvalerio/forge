@@ -1,13 +1,15 @@
 ---
 id: TASK-0016
 title: 'Automate SHA-pin bumps for third-party actions'
-status: Triage
+status: To Do
 assignee: []
 created_date: '2026-09-26 19:42'
+updated_date: '2026-09-27 12:31'
 labels:
   - ci
   - security
 dependencies: []
+parent_task_id: 'TASK-0018'
 modified_files:
   - .github/dependabot.yml
   - README.md

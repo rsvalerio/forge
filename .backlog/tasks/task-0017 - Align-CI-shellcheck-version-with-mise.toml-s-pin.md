@@ -1,13 +1,15 @@
 ---
 id: TASK-0017
 title: 'Align CI shellcheck version with mise.toml''s pin'
-status: Triage
+status: To Do
 assignee: []
 created_date: '2026-09-26 19:42'
+updated_date: '2026-09-27 12:31'
 labels:
   - ci
   - tooling
 dependencies: []
+parent_task_id: 'TASK-0018'
 modified_files:
   - .github/workflows/test-self.yml
   - mise.toml
