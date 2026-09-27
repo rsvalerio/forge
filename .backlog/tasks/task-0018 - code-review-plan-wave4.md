@@ -1,10 +1,10 @@
 ---
 id: TASK-0018
 title: 'code-review-plan-wave4'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-27 12:31'
-updated_date: '2026-09-27 12:31'
+updated_date: '2026-09-27 13:18'
 labels:
   - code-review-wave
 dependencies:
@@ -40,4 +40,7 @@ CI pin hygiene, follow-ups to wave3 SHA pinning and ops verify: automate github-
 
 <!-- SECTION:NOTES:BEGIN -->
 Overlaps: none (no other open waves)
+
+Branch: code-review/TASK-0018
+
 <!-- SECTION:NOTES:END -->

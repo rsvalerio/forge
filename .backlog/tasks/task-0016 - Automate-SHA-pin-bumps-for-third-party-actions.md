@@ -1,10 +1,10 @@
 ---
 id: TASK-0016
 title: 'Automate SHA-pin bumps for third-party actions'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-26 19:42'
-updated_date: '2026-09-27 12:31'
+updated_date: '2026-09-27 13:17'
 labels:
   - ci
   - security
@@ -31,5 +31,12 @@ ordinal: 1000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 SHA pins for github-actions are bumped by an automated PR (e.g. Dependabot github-actions ecosystem) that keeps the version comment in sync
+- [x] #1 SHA pins for github-actions are bumped by an automated PR (e.g. Dependabot github-actions ecosystem) that keeps the version comment in sync
+
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Added .github/dependabot.yml (github-actions ecosystem, directories "/" + "/actions/*", weekly, single group). Verified against dependabot-core github_actions FileFetcher: "/" scans .github/workflows plus root action.yml; any other directory scans its own *.yml, so /actions/* covers each composite action.yml. Dependabot updater rewrites the version comment (VersionCommenter). README rule 6 documents it.
+<!-- SECTION:NOTES:END -->
