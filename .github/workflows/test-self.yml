@@ -149,8 +149,15 @@ jobs:
   signed-commit:
     name: signed-commit integration
     runs-on: ubuntu-latest
-    # Forks cannot mint the App token, and the secret is not exposed to them anyway.
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    # Needs GH_APP_PRIVATE_KEY, which neither fork PRs nor Dependabot PRs receive:
+    # Dependabot-triggered runs only see Dependabot secrets. Skipping (rather than giving
+    # Dependabot the key) keeps the App key away from freshly bumped, unreviewed action
+    # code; the bump is still exercised here on the push to main after merge. Matched on
+    # the PR author, not github.actor, so a human re-run of a Dependabot PR still skips.
+    if: >-
+      (github.event_name != 'pull_request' ||
+       github.event.pull_request.head.repo.full_name == github.repository) &&
+      github.event.pull_request.user.login != 'dependabot[bot]'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
