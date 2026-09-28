@@ -33,6 +33,7 @@ actions/                      # composite actions — step-level, run inside the
   app-bot-identity/           #   resolve ${APP_SLUG}[bot] and configure git
   apt-pool-push/              #   commit .debs to the apt pool in one commit, with retention
   deb-from-dist/              #   repackage cargo-dist linux-gnu tarballs into per-arch .debs
+  move-major-tag/             #   repoint the moving major tag (v1), never across a major
 .github/workflows/            # reusable workflows — job-level, own runner
   rust-ci.yml                 #   fmt / check / clippy / build / test / deny
   bump.yml                    #   cocogitto version bump, signed commit + tag
