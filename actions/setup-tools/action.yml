@@ -1,0 +1,78 @@
+name: setup tools
+description: >-
+  Install tools at the versions forge's mise.toml pins and put them on PATH: `ops` through
+  setup-ops (sha256-verified), everything else through mise. A tool mise.toml does not pin
+  fails the step unless it is given as `name@version`.
+
+# The one way forge's workflows install tools. The versions live in exactly one place,
+# forge's mise.toml, which is also what `mise install` reads for local runs. This action is
+# loaded from the same forge checkout as that file, so a workflow at a given forge ref
+# always installs that ref's versions.
+#
+# Only forge's mise.toml is read. In a consumer's job the forge checkout (.forge) sits
+# inside the consumer's workspace, so mise would otherwise also load the consumer's own
+# mise.toml one directory up, and a self-hosted runner's global config: either can add
+# tools, hooks or settings to this install, or fail it as untrusted. The MISE_* variables
+# below are set per step, so none of them leaks into the caller's later steps either;
+# what the job keeps is PATH entries, and mise itself on PATH.
+
+inputs:
+  tools:
+    description: >-
+      Comma- or whitespace-separated tool names, each a key of forge's mise.toml
+      `[tools]`, e.g. `ops,cargo-deny`. `name@version` installs that exact version
+      instead, for a tool forge does not pin.
+    required: true
+  token:
+    description: Token for downloading releases; authenticated requests avoid anonymous rate limits.
+    required: false
+    default: ${{ github.token }}
+
+runs:
+  using: composite
+  steps:
+    - name: Resolve pins
+      id: plan
+      shell: bash
+      env:
+        TOOLS: ${{ inputs.tools }}
+        FORGE_ROOT: ${{ github.action_path }}/../..
+      run: '"${GITHUB_ACTION_PATH}/setup-tools.sh" plan'
+
+    # Installs mise at a pinned version, then the requested tools from forge's mise.toml,
+    # cached per tool set (the key hashes `install_args`). Dependabot moves this SHA but
+    # not `version`, so bump `version` with mise.toml (README "Layout").
+    - name: Install ${{ steps.plan.outputs.mise-tools }}
+      if: steps.plan.outputs.mise-tools != ''
+      uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+      env:
+        MISE_CEILING_PATHS: ${{ steps.plan.outputs.ceiling }}
+        MISE_TRUSTED_CONFIG_PATHS: ${{ steps.plan.outputs.root }}
+        MISE_GLOBAL_CONFIG_FILE: ${{ runner.temp }}/setup-tools/no-global-config.toml
+        MISE_SYSTEM_CONFIG_FILE: ${{ runner.temp }}/setup-tools/no-system-config.toml
+        # Set here so the action does not export them (it only exports what is unset).
+        MISE_GITHUB_TOKEN: ${{ inputs.token }}
+        MISE_YES: "1"
+        MISE_LOG_LEVEL: info
+      with:
+        version: 2026.9.14
+        install_args: ${{ steps.plan.outputs.mise-tools }}
+        working_directory: ${{ steps.plan.outputs.root }}
+        add_shims_to_path: false
+        env: false
+        github_token: ${{ inputs.token }}
+
+    - name: Put ${{ inputs.tools }} on PATH
+      shell: bash
+      env:
+        FORGE_ROOT: ${{ steps.plan.outputs.root }}
+        MISE_TOOLS: ${{ steps.plan.outputs.mise-tools }}
+        OPS_VERSION: ${{ steps.plan.outputs.ops-version }}
+        GH_TOKEN: ${{ inputs.token }}
+        MISE_CEILING_PATHS: ${{ steps.plan.outputs.ceiling }}
+        MISE_TRUSTED_CONFIG_PATHS: ${{ steps.plan.outputs.root }}
+        MISE_GLOBAL_CONFIG_FILE: ${{ runner.temp }}/setup-tools/no-global-config.toml
+        MISE_SYSTEM_CONFIG_FILE: ${{ runner.temp }}/setup-tools/no-system-config.toml
+        MISE_GITHUB_TOKEN: ${{ inputs.token }}
+        MISE_YES: "1"
+      run: '"${GITHUB_ACTION_PATH}/setup-tools.sh" path'

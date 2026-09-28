@@ -110,8 +110,9 @@ on:
         default: "."
       install-tools:
         description: >-
-          Tools installed via taiki-e/install-action. An unpinned tool whose binary
-          is already on PATH (e.g. baked into a self-hosted runner image) is skipped.
+          Tools to install, through forge's actions/setup-tools: each name is installed at
+          the version forge's mise.toml pins (both defaults are pinned there), and a tool
+          forge does not pin must be given as `name@version` (a mise tool name).
         type: string
         required: false
         default: cargo-edit,cocogitto
@@ -189,49 +190,13 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
           app-slug: ${{ steps.app-token.outputs.app-slug }}
 
-      # install-action never skips a tool that is already on PATH, and neither
-      # cargo-edit nor cocogitto has a manifest there, so both go through its
-      # `cargo-binstall --force` fallback on every run. A self-hosted runner whose
-      # image bakes them in would re-download them each bump for nothing. Probe
-      # first and hand install-action only what is missing; on a GitHub-hosted
-      # runner that is everything, so behaviour there is unchanged.
-      #
-      # A pinned entry (`tool@1.2.3`) is always installed: a binary on PATH says
-      # nothing about which version it is.
-      - name: Find tools missing from the runner
-        id: tools
-        env:
-          TOOLS: ${{ inputs.install-tools }}
-        run: |
-          set -euo pipefail
-          missing=()
-          # install-action takes a comma- or whitespace-separated list, newlines
-          # included; accept every form it does.
-          read -ra entries -d '' <<<"$(printf '%s' "$TOOLS" | tr ',' ' ')" || true
-          for entry in "${entries[@]}"; do
-            case "$entry" in
-              *@*) missing+=("$entry"); continue ;;
-            esac
-            # The binary a tool provides, where it differs from the tool's name.
-            case "$entry" in
-              cocogitto) bin=cog ;;
-              cargo-edit) bin=cargo-set-version ;;
-              nextest) bin=cargo-nextest ;;
-              *) bin="$entry" ;;
-            esac
-            if command -v "$bin" >/dev/null; then
-              echo "$entry: $(command -v "$bin") already present, skipping"
-            else
-              missing+=("$entry")
-            fi
-          done
-          echo "missing=$(IFS=,; echo "${missing[*]}")" >>"$GITHUB_OUTPUT"
-
-      - name: Install ${{ steps.tools.outputs.missing }}
-        if: steps.tools.outputs.missing != ''
-        uses: taiki-e/install-action@9983c65e42da123ff25d1f78505eb6de315aa172 # v2.87.20
+      # At the versions forge's mise.toml pins, the one list every forge workflow installs
+      # from, so a bump never runs a cocogitto or cargo-edit that changed since the last one.
+      # setup-tools reads only forge's mise.toml, never this repository's.
+      - name: Install ${{ inputs.install-tools }}
+        uses: ./.forge/actions/setup-tools
         with:
-          tool: ${{ steps.tools.outputs.missing }}
+          tools: ${{ inputs.install-tools }}
 
       # In signed mode the commit is created through the API, so a `git push` post_bump_hook
       # would race it: cog would push the UNSIGNED commit first, leaving the branch ahead of
