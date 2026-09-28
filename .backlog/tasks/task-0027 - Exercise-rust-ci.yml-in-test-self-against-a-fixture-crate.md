@@ -1,13 +1,15 @@
 ---
 id: TASK-0027
 title: 'Exercise rust-ci.yml in test-self against a fixture crate'
-status: Triage
+status: To Do
 assignee: []
 created_date: '2026-09-28 10:59'
+updated_date: '2026-09-28 13:43'
 labels:
   - ci
   - test
 dependencies: []
+parent_task_id: 'TASK-0034'
 modified_files:
   - .github/workflows/test-self.yml
 priority: medium

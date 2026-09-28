@@ -4,6 +4,7 @@ title: 'Keep forge''s action SHA pins aligned with ops under Dependabot bumps'
 status: Triage
 assignee: []
 created_date: '2026-09-27 13:17'
+updated_date: '2026-09-28 13:50'
 labels:
   - code-review-rust
   - ci
@@ -29,5 +30,12 @@ ordinal: 1000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Rule 6's same-SHA-as-ops clause is either reconciled with automated bumps (ops runs an equivalent Dependabot config, or the rule is reworded) and documented
+- [ ] #1 README design rule 6 no longer requires matching ops's SHAs, and says why
+
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Decision by the owner, 2026-09-28: drop 'where ops pins the same action, use the same SHA' from README rule 6. Each repo pins independently and Dependabot moves the pins; once ops CI runs on forge workflows (ops TASK-2329) most of ops's pins are forge's anyway. Remaining work: reword rule 6 (README.md).
+<!-- SECTION:NOTES:END -->

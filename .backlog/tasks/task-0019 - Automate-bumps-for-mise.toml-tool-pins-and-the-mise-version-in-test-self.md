@@ -1,13 +1,15 @@
 ---
 id: TASK-0019
 title: 'Automate bumps for mise.toml tool pins and the mise version in test-self'
-status: Triage
+status: To Do
 assignee: []
 created_date: '2026-09-27 13:17'
+updated_date: '2026-09-28 13:43'
 labels:
   - code-review-rust
   - ci
 dependencies: []
+parent_task_id: 'TASK-0034'
 modified_files:
   - mise.toml
   - .github/workflows/test-self.yml

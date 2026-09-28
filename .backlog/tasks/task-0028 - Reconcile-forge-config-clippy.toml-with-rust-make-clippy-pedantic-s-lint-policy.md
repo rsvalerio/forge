@@ -4,6 +4,7 @@ title: 'Reconcile forge config/clippy.toml with rust-make-clippy-pedantic''s lin
 status: Triage
 assignee: []
 created_date: '2026-09-28 10:59'
+updated_date: '2026-09-28 13:52'
 labels:
   - ops-alignment
   - lint
@@ -32,3 +33,9 @@ dedup_key: 'ops-align:clippy-policy'
 <!-- AC:BEGIN -->
 - [ ] #1 One source for clippy.toml keys and the `[workspace.lints]` policy, chosen per the foundation decision; the other side references it
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Per TASK-0025's decision, the single source for clippy.toml and [workspace.lints] is ops's embedded templates (ops TASK-2330); reconcile forge config/clippy.toml into it, then point forge at ops.
+<!-- SECTION:NOTES:END -->

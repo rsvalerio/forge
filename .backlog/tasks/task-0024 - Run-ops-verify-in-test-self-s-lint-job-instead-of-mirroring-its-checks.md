@@ -1,14 +1,16 @@
 ---
 id: TASK-0024
 title: 'Run ops verify in test-self''s lint job instead of mirroring its checks'
-status: Triage
+status: To Do
 assignee: []
 created_date: '2026-09-28 10:59'
+updated_date: '2026-09-28 13:43'
 labels:
   - ci
   - ops-alignment
 dependencies:
   - TASK-0023
+parent_task_id: 'TASK-0035'
 modified_files:
   - .github/workflows/test-self.yml
   - .ops.toml

@@ -1,13 +1,15 @@
 ---
 id: TASK-0022
 title: 'Keep Dependabot major-version bumps out of the weekly github-actions group'
-status: Triage
+status: To Do
 assignee: []
 created_date: '2026-09-28 10:59'
+updated_date: '2026-09-28 13:43'
 labels:
   - ci
   - dependabot
 dependencies: []
+parent_task_id: 'TASK-0034'
 modified_files:
   - .github/dependabot.yml
   - README.md

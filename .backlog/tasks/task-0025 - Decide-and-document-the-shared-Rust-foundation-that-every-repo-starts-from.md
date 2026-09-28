@@ -4,6 +4,7 @@ title: 'Decide and document the shared Rust foundation that every repo starts fr
 status: Triage
 assignee: []
 created_date: '2026-09-28 10:59'
+updated_date: '2026-09-28 13:52'
 labels:
   - ops-alignment
   - decision
@@ -34,3 +35,12 @@ dedup_key: 'ops-align:foundation'
 - [ ] #1 docs/foundation.md records the gate contract, where each default lives and how a repo adopts and updates it
 - [ ] #2 Follow-up tasks are filed in ops/ai/consumer backlogs for every change the decision requires
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Decisions by the owner, 2026-09-28: (1) Defaults live in ops built-ins: the Rust stack defaults in ops carry the foundation (gate commands, --locked, check-only fmt); a repo's .ops.toml holds only its exceptions; updates ship with ops releases, no vendored copies to sync. (2) Gate contract: every Rust repo exposes 'verify' (fast static gate: fmt, clippy, build, doc; used by the pre-commit hook and wave runners) and 'qa' (full gate: tests, deps, security); CI runs both, in check-only mode. Still open: where shared config files (clippy.toml, deny.toml, nextest.toml, [workspace.lints]) live.
+
+Decision by the owner, 2026-09-28: shared config files (clippy.toml, deny.toml, rustfmt.toml, .config/nextest.toml, [workspace.lints]) come from ops: ops embeds the templates, scaffolds them into a repo, and reports drift (ops TASK-2330). forge config/ and the ai skill templates will reference ops. With this, every decision the task asks for is made; remaining work is writing docs/foundation.md.
+
+<!-- SECTION:NOTES:END -->

@@ -1,12 +1,14 @@
 ---
 id: TASK-0033
 title: 'Fix stale adoption claims in README and consuming.md'
-status: Triage
+status: To Do
 assignee: []
 created_date: '2026-09-28 10:59'
+updated_date: '2026-09-28 13:43'
 labels:
   - docs
 dependencies: []
+parent_task_id: 'TASK-0037'
 modified_files:
   - README.md
   - docs/consuming.md

@@ -1,13 +1,15 @@
 ---
 id: TASK-0021
 title: 'Neutralise setup-rust-toolchain v2''s build-warnings=deny default in rust-ci and publish-crates'
-status: Triage
+status: To Do
 assignee: []
 created_date: '2026-09-28 10:59'
+updated_date: '2026-09-28 13:43'
 labels:
   - ci
   - regression
 dependencies: []
+parent_task_id: 'TASK-0034'
 modified_files:
   - .github/workflows/rust-ci.yml
   - .github/workflows/publish-crates.yml

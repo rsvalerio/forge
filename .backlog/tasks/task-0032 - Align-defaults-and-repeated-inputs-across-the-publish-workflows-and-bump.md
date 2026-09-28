@@ -1,13 +1,15 @@
 ---
 id: TASK-0032
 title: 'Align defaults and repeated inputs across the publish workflows and bump'
-status: Triage
+status: To Do
 assignee: []
 created_date: '2026-09-28 10:59'
+updated_date: '2026-09-28 13:43'
 labels:
   - ci
   - duplication
 dependencies: []
+parent_task_id: 'TASK-0036'
 modified_files:
   - .github/workflows/publish-deb.yml
   - .github/workflows/publish-deb-dist.yml

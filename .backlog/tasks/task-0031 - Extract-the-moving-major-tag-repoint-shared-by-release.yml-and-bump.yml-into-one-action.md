@@ -1,13 +1,15 @@
 ---
 id: TASK-0031
 title: 'Extract the moving-major-tag repoint shared by release.yml and bump.yml into one action'
-status: Triage
+status: To Do
 assignee: []
 created_date: '2026-09-28 10:59'
+updated_date: '2026-09-28 13:43'
 labels:
   - ci
   - duplication
 dependencies: []
+parent_task_id: 'TASK-0036'
 modified_files:
   - .github/workflows/release.yml
   - .github/workflows/bump.yml
