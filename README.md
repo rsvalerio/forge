@@ -57,11 +57,12 @@ command, so its check list lives only in `.ops.toml`. The tools it needs are pin
 same actionlint and shellcheck; CI installs ops itself with `actions/setup-ops`.
 
 Those pins move by hand: Dependabot bumps `jdx/mise-action`'s SHA but reads neither
-`mise.toml` nor the mise binary version that test-self's lint job passes the action
-(`version:`). Bump all of them together, in one PR, whenever a Dependabot PR moves
-`jdx/mise-action` and at least once a month otherwise: `mise latest <tool>` for each tool
-in `mise.toml`, and the newest [jdx/mise release](https://github.com/jdx/mise/releases)
-for `version:`. Then `mise install` and `ops verify` before pushing, so a new actionlint
+`mise.toml`, nor the mise binary version that test-self's lint job passes the action
+(`version:`), nor the ops version on its `setup-ops` step. Bump all of them together, in
+one PR, whenever a Dependabot PR moves `jdx/mise-action` and at least once a month
+otherwise: `mise latest <tool>` for each tool in `mise.toml`, the newest
+[jdx/mise release](https://github.com/jdx/mise/releases) for `version:`, and the newest
+[ops release](https://github.com/rsvalerio/ops/releases) for `setup-ops`. Then `mise install` and `ops verify` before pushing, so a new actionlint
 or shellcheck check lands together with its fixes.
 
 Composite actions and reusable workflows are not interchangeable: an action is a *step*

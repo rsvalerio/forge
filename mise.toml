@@ -3,7 +3,8 @@
 # machine with no global shellcheck default. `mise install` fetches them. test-self.yml's
 # lint job installs from this file too (jdx/mise-action), so it is the only place these
 # versions are pinned: bump them here and CI follows. Nothing bumps them automatically;
-# README.md ("Layout") gives the cadence, shared with test-self's mise `version:`.
+# README.md ("Layout") gives the cadence, shared with test-self's mise `version:` and
+# its setup-ops ops `version:` (ops itself is not a mise tool).
 [tools]
 actionlint = "1.7.12"
 shellcheck = "0.11.0"

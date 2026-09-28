@@ -5,11 +5,11 @@ zero_padded_ids = 4
 task_prefix = "TASK"
 backlog_directory = ".backlog"
 
-# `ops verify` is the local gate: test-self.yml's lint job plus the shell tests that run
-# without network or credentials. The lint steps call the same ci/lint.sh subcommands
-# as CI, so the two cannot drift; add a check there, then list it here and in CI.
-# `lint-yaml` (ops check-yaml) is the one local-only extra: it parses every YAML file, templates included,
-# which CI does not (ops is not installed there). Tools come from mise.toml.
+# `ops verify` is forge's gate, and this file is the only list of its checks: developers,
+# wave runners and test-self.yml's lint job all run `ops verify` itself, so a check added
+# here runs everywhere and one added anywhere else runs nowhere. Everything in it works
+# without network or credentials. Tools come from mise.toml; CI's ops version is pinned
+# on test-self.yml's setup-ops step.
 
 # actionlint reports on stdout; ops shows only a failing step's stderr.
 [commands.actionlint]
@@ -55,6 +55,8 @@ args = ["-c", "ops check-yaml 1>&2"]
 help = "Every YAML file parses (templates included)"
 category = "Code Quality"
 
+# The pool commit is where a mistake costs most: retention deletes published packages,
+# so the pruning rules are tested against a local stand-in for the apt repository.
 [commands.test-pool-update]
 program = "actions/apt-pool-push/pool-update.test.sh"
 help = "apt-pool-push pool logic against a local stand-in repository"
@@ -72,5 +74,5 @@ commands = [
   "test-pool-update",
 ]
 fail_fast = false
-help = "Run test-self's lint job and the local shell tests"
+help = "forge's gate: every lint and local shell test (test-self's lint job runs this)"
 category = "Code Quality"

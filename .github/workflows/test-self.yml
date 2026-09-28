@@ -15,8 +15,10 @@ permissions:
   contents: read
 
 jobs:
+  # The gate is `ops verify`, defined once in .ops.toml: this job runs exactly what a
+  # developer or wave runner runs locally, so a check is added there and nowhere else.
   lint:
-    name: Lint workflows and actions
+    name: ops verify
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -32,27 +34,16 @@ jobs:
         with:
           version: 2026.9.14
 
-      # actionlint understands workflow syntax, expression contexts and `uses:` refs, and
-      # runs shellcheck over every `run:` block.
-      - name: actionlint
-        run: actionlint
+      # The ops that runs forge's gate. This is the one place its version is pinned;
+      # nothing bumps it automatically, so move it with mise.toml (README "Layout").
+      - name: Install ops
+        uses: ./actions/setup-ops
+        with:
+          version: 0.72.0
 
-      # The remaining checks live in ci/lint.sh so `ops verify` runs them verbatim; add a
-      # check there and list it both here and in .ops.toml.
-      - name: shellcheck standalone scripts
-        run: ci/lint.sh shellcheck
-
-      - name: Every script is executable
-        run: ci/lint.sh executable
-
-      - name: Every action directory has a well-formed action.yml
-        run: ci/lint.sh action-yml
-
-      - name: Shared configs parse as TOML
-        run: ci/lint.sh config-toml
-
-      - name: Third-party actions are SHA-pinned
-        run: ci/lint.sh pinned-actions
+      # Every check .ops.toml lists under [commands.verify]; see there for what each does.
+      - name: ops verify
+        run: ops verify
 
   # rust-ci.yml is the most-consumed workflow, and a toolchain-action default can change
   # what it fails on without any edit here (setup-rust-toolchain v2's
@@ -78,18 +69,44 @@ jobs:
       run-deny: false
       use-sccache: false
 
-  # The pool commit is where a mistake costs most: retention deletes published packages,
-  # so the pruning rules are tested against a local stand-in for the apt repository.
-  apt-pool-push:
-    name: apt-pool-push pool logic
+  # The failure paths of setup-ops. The happy path is the lint job above.
+  setup-ops:
+    name: setup-ops rejects what it cannot verify
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - name: pool-update.sh
-        run: actions/apt-pool-push/pool-update.test.sh
+      - name: An unknown version is rejected
+        id: unknown
+        continue-on-error: true
+        uses: ./actions/setup-ops
+        with:
+          version: 0.0.999
+          install-dir: ${{ runner.temp }}/unknown
+
+      - name: A checksum mismatch is rejected
+        id: mismatch
+        continue-on-error: true
+        uses: ./actions/setup-ops
+        with:
+          version: 0.72.0
+          sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+          install-dir: ${{ runner.temp }}/mismatch
+
+      - name: Assert both failed and installed nothing
+        env:
+          UNKNOWN: ${{ steps.unknown.outcome }}
+          MISMATCH: ${{ steps.mismatch.outcome }}
+        run: |
+          set -euo pipefail
+          [ "$UNKNOWN" = failure ] || { echo "::error::setup-ops accepted an unknown version"; exit 1; }
+          [ "$MISMATCH" = failure ] || { echo "::error::setup-ops accepted a checksum mismatch"; exit 1; }
+          for dir in unknown mismatch; do
+            [ ! -e "${RUNNER_TEMP}/${dir}/ops" ] \
+              || { echo "::error::setup-ops installed ops despite failing (${dir})"; exit 1; }
+          done
 
   # Repackages a real, pinned ops release, so the tarball layout and .sha256 format are
   # dist's actual output rather than a fixture's idea of it.
