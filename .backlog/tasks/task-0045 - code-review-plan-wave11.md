@@ -1,10 +1,10 @@
 ---
 id: TASK-0045
 title: 'code-review-plan-wave11'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-28 16:59'
-updated_date: '2026-09-28 16:59'
+updated_date: '2026-09-28 17:05'
 labels:
   - code-review-wave
 dependencies:
@@ -42,4 +42,7 @@ test-self coverage gaps: publish-crates dry run on a fixture (TASK-0039), move-m
 
 <!-- SECTION:NOTES:BEGIN -->
 Overlaps: TASK-0044 wave10 (.github/workflows/test-self.yml)
+
+Branch: code-review/TASK-0045
+
 <!-- SECTION:NOTES:END -->
