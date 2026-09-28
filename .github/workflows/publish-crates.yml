@@ -104,10 +104,15 @@ jobs:
         with:
           persist-credentials: false
 
+      # Same two opt-outs as rust-ci.yml, for the same reasons: `build-warnings: ""` keeps
+      # v2's CARGO_BUILD_WARNINGS=deny default from failing `cargo publish` (which builds
+      # every crate, --dry-run included) on a mere warning, and `cache: false` skips the
+      # rust-cache restore and save a one-shot publish never reuses.
       - uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           toolchain: ${{ inputs.toolchain }}
-          rustflags: ""
+          build-warnings: ""
+          cache: false
 
       # Exchanges the workflow's OIDC token for a short-lived, scoped publish token, so no
       # long-lived CARGO_REGISTRY_TOKEN has to exist anywhere. Setup is per-crate on
