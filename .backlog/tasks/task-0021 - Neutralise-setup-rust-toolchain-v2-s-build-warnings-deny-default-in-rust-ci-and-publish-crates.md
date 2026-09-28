@@ -1,10 +1,10 @@
 ---
 id: TASK-0021
 title: 'Neutralise setup-rust-toolchain v2''s build-warnings=deny default in rust-ci and publish-crates'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-28 10:59'
-updated_date: '2026-09-28 13:43'
+updated_date: '2026-09-28 13:56'
 labels:
   - ci
   - regression
@@ -32,8 +32,15 @@ dedup_key: 'ops-align:build-warnings'
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Every setup-rust-toolchain step in rust-ci and publish-crates passes `build-warnings: ""` (or the workflow sets CARGO_BUILD_WARNINGS), so warnings policy stays with clippy-args
-- [ ] #2 The no-op `rustflags: ""` lines and their comment are removed or corrected
-- [ ] #3 publish-crates sets `cache: false` consistently with rust-ci
-- [ ] #4 Lands before the next forge release repoints v1
+- [x] #1 Every setup-rust-toolchain step in rust-ci and publish-crates passes `build-warnings: ""` (or the workflow sets CARGO_BUILD_WARNINGS), so warnings policy stays with clippy-args
+- [x] #2 The no-op `rustflags: ""` lines and their comment are removed or corrected
+- [x] #3 publish-crates sets `cache: false` consistently with rust-ci
+- [x] #4 Lands before the next forge release repoints v1
+
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Every setup-rust-toolchain v2 step in rust-ci.yml (6) and publish-crates.yml (1) now passes `build-warnings: ""` in place of the no-op `rustflags: ""` (v2 default is already empty); rationale comments added. publish-crates also passes `cache: false`. AC#4: at fix time v1 == v0.4.0 (bad5c5e, pre-#16) and no newer tag exists; the fix rides run branch code-review/run-20260928 to main ahead of any release.
+<!-- SECTION:NOTES:END -->
