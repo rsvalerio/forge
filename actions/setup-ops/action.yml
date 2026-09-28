@@ -1,0 +1,59 @@
+name: setup ops
+description: >-
+  Install an exact ops release (github.com/rsvalerio/ops) for the runner's platform and
+  put it on PATH. The tarball is verified against the release's published sha256 before it
+  is extracted, and `ops --version` is asserted afterwards.
+
+# ops is not on crates.io, and an unpinned `curl | sh` of its installer would run whatever
+# the latest release is with the job's credentials. This is the one pinned, verified way to
+# get ops onto a runner: an exact version, cargo-dist's .sha256 sidecar checked first, and
+# an optional `sha256` pin so a replaced release asset cannot pass as the one you reviewed.
+
+inputs:
+  version:
+    description: >-
+      Exact ops release to install, e.g. `0.72.0` (a leading `v` is accepted). There is no
+      `latest`: the version is the pin.
+    required: true
+  sha256:
+    description: >-
+      Optional expected sha256 of the platform's tarball. When set, the download must match
+      it as well as the release's own .sha256 sidecar.
+    required: false
+    default: ""
+  token:
+    description: Token for downloading the release; authenticated requests avoid anonymous rate limits.
+    required: false
+    default: ${{ github.token }}
+  install-dir:
+    description: Directory `ops` is installed into and added to PATH. Defaults to a directory under RUNNER_TEMP.
+    required: false
+    default: ""
+
+outputs:
+  path:
+    description: Absolute path of the installed ops binary.
+    value: ${{ steps.install.outputs.path }}
+  version:
+    description: The installed version, as `ops --version` reports it, without the `ops ` prefix.
+    value: ${{ steps.install.outputs.version }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install ops ${{ inputs.version }}
+      id: install
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+        EXPECTED_SHA256: ${{ inputs.sha256 }}
+        GH_TOKEN: ${{ inputs.token }}
+        INSTALL_DIR: ${{ inputs.install-dir || format('{0}/setup-ops/bin', runner.temp) }}
+      run: |
+        set -euo pipefail
+        path="$("${GITHUB_ACTION_PATH}/setup-ops.sh")"
+        dirname "$path" >>"$GITHUB_PATH"
+        {
+          echo "path=$path"
+          echo "version=${VERSION#v}"
+        } >>"$GITHUB_OUTPUT"

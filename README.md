@@ -34,6 +34,7 @@ actions/                      # composite actions — step-level, run inside the
   apt-pool-push/              #   commit .debs to the apt pool in one commit, with retention
   deb-from-dist/              #   repackage cargo-dist linux-gnu tarballs into per-arch .debs
   move-major-tag/             #   repoint the moving major tag (v1), never across a major
+  setup-ops/                  #   install a pinned, sha256-verified ops release
 .github/workflows/            # reusable workflows — job-level, own runner
   rust-ci.yml                 #   fmt / check / clippy / build / test / deny
   bump.yml                    #   cocogitto version bump, signed commit + tag
@@ -42,7 +43,7 @@ actions/                      # composite actions — step-level, run inside the
   publish-deb-dist.yml        #   dist custom publish job: deb-from-dist, then apt-pool-push
   publish-crates.yml          #   real publish is a per-crate opt-in (PLAN.md §5)
   test-self.yml               #   forge's own CI
-ci/lint.sh                    # test-self's lint checks, shared with `ops verify`
+ci/lint.sh                    # static checks that `ops verify` runs
 ci/fixtures/rust-ci/           # crates test-self runs rust-ci.yml against
 config/                       # canonical deny.toml / clippy.toml / rustfmt.toml
 templates/                    # SECURITY, CONTRIBUTING, CODE_OF_CONDUCT, issue + PR templates
@@ -50,9 +51,10 @@ docs/
 plans/                        # design docs
 ```
 
-`ops verify` runs test-self's lint job and the local shell tests before you push; the tools
-it needs are pinned in `mise.toml` (`mise install`), which test-self's lint job installs
-from too, so both run the same actionlint and shellcheck.
+`ops verify` is the gate: run it before you push, and test-self's lint job runs the same
+command, so its check list lives only in `.ops.toml`. The tools it needs are pinned in
+`mise.toml` (`mise install`), which test-self's lint job installs from too, so both run the
+same actionlint and shellcheck; CI installs ops itself with `actions/setup-ops`.
 
 Those pins move by hand: Dependabot bumps `jdx/mise-action`'s SHA but reads neither
 `mise.toml` nor the mise binary version that test-self's lint job passes the action
