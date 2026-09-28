@@ -356,9 +356,11 @@ jobs:
   # Each job: check out, check out forge at `forge-ref` for actions/setup-rust (toolchain,
   # compile cache, and ops plus the job's tools at forge's mise.toml pins), keep that
   # checkout out of the gate, then run one leg of the gate contract. Their names start
-  # with `ops` so none collides with an `engine: cargo` job's check name. "Out of the gate" is
-  # a git exclude where a cache action's post step still runs from the checkout — ops's
-  # file checks skip what git ignores — and deleting it where nothing does. What each `ops`
+  # with `ops` so none collides with an `engine: cargo` job's check name. "Out of the gate"
+  # is a git exclude where the gate reads only what git tracks (ops's file checks skip what
+  # git ignores), and moving the checkout to $RUNNER_TEMP for the gate where it scans the
+  # file tree (cargo-deny, machete, Trivy). It is moved back, never deleted: setup-rust's
+  # post steps run at job end from `.forge/actions/setup-rust`. What each `ops`
   # command runs is the ops Rust stack's default unless the caller's `.ops.toml`
   # overrides it, so a repo tunes its CI there, not through this workflow's inputs.
 
@@ -458,11 +460,14 @@ jobs:
           compile-cache: none
           working-directory: ${{ inputs.working-directory }}
           tools: ops, cargo-deny, cargo-machete
-      - name: Drop the forge checkout
-        run: rm -rf .forge
+      - name: Move the forge checkout out of the gate
+        run: mv .forge "$RUNNER_TEMP/forge"
       - name: ops deps --check
         working-directory: ${{ inputs.working-directory }}
         run: ops deps --check
+      - name: Restore the forge checkout for setup-rust's post steps
+        if: always()
+        run: '[ ! -d "$RUNNER_TEMP/forge" ] || mv "$RUNNER_TEMP/forge" .forge'
 
   # Trivy's secret scan always, and its vulnerability scan wherever a lockfile is found.
   ops-sec:
@@ -488,11 +493,14 @@ jobs:
           compile-cache: none
           working-directory: ${{ inputs.working-directory }}
           tools: ops, trivy
-      - name: Drop the forge checkout
-        run: rm -rf .forge
+      - name: Move the forge checkout out of the gate
+        run: mv .forge "$RUNNER_TEMP/forge"
       - name: ops sec
         working-directory: ${{ inputs.working-directory }}
         run: ops sec
+      - name: Restore the forge checkout for setup-rust's post steps
+        if: always()
+        run: '[ ! -d "$RUNNER_TEMP/forge" ] || mv "$RUNNER_TEMP/forge" .forge'
 
   # --- either engine -----------------------------------------------------------------------
 
