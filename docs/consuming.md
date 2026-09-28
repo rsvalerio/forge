@@ -654,19 +654,13 @@ forge's own test-self lint job pins its ops version on its `setup-ops` step.
 
 ## Shared configuration
 
-`config/deny.toml`, `config/clippy.toml` and `config/rustfmt.toml` are a **baseline to
-extend, not a drop-in replacement**. Vendor them into the consumer and keep repo-specific
-additions local:
+The shared Rust config — `clippy.toml`, `deny.toml`, `rustfmt.toml`,
+`.config/nextest.toml` and the `[workspace.lints]` policy — comes from **ops, not forge**.
+Scaffold it with `ops init --rust` and keep it current with `ops init --rust --check`
+(ops 0.74.0 or later); see [docs/foundation.md](foundation.md) for the gate contract, how
+to adopt the foundation and how updates arrive.
 
-- `deny.toml` carries no `advisories.ignore` entries. Every existing ignore was justified
-  against one repo's dependency tree, and a shared ignore list silently widens everyone
-  else's exposure. Keep those in the consuming repo.
-- `clippy.toml` carries no `msrv`. It differs per repo (ops 1.80, oxydraw 1.85, event0
-  1.92) and belongs next to the `rust-version` it must match.
-- `rustfmt.toml` carries no `edition`. `cargo fmt` takes it from each crate's Cargo.toml;
-  hardcoding it would format a 2024-edition crate under 2021 rules.
-
-**Rename on adoption.** ops uses `clippy.toml`, event0 uses `.clippy.toml` and
-`.rustfmt.toml`. The non-dotted spelling is what Cargo documents and what forge
-standardises on. Do not keep both — each tool reads only one, and two files are exactly how
-the spellings silently disagree.
+`config/deny.toml`, `config/clippy.toml` and `config/rustfmt.toml` in this repo are
+mirrors of the ops templates, kept only for repos that still vendor them (dbsec's
+`forge-sync`). Do not start vendoring them in a new repo, and change the templates in ops
+rather than here.
