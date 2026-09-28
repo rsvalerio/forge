@@ -77,6 +77,7 @@ on:
         description: >-
           Keep the newest N versions of this package per arch in the pool and remove older
           ones in the same commit; 0 keeps everything. See docs/consuming.md, "Retention".
+          publish-deb has no such input and keeps everything; docs/versioning.md says why.
         type: number
         required: false
         default: 3
@@ -86,18 +87,28 @@ on:
         required: false
         default: false
       owner:
+        description: Owner of the apt repository, used for App token scoping.
         type: string
         required: false
         default: rsvalerio
       app-client-id:
+        description: >-
+          GitHub App client id. Defaults to the caller's `vars.GH_APP_CLIENT_ID`; pass
+          explicitly if the variable is not visible to this workflow.
         type: string
         required: false
         default: ""
       forge-ref:
+        description: >-
+          Ref of rsvalerio/forge to load composite actions from. Real consumers leave this
+          at the default; forge-testbed passes `main` (docs/versioning.md).
         type: string
         required: false
         default: v1
       runs-on:
+        description: >-
+          Runner label. Defaults to ubuntu-22.04, not ubuntu-latest like bump and
+          publish-crates; docs/versioning.md says why the two are not aligned.
         type: string
         required: false
         default: ubuntu-22.04
@@ -147,6 +158,9 @@ jobs:
             echo "version=$(jq -r .app_version <<<"$release")"
           } >>"$GITHUB_OUTPUT"
 
+      # The one way a reusable workflow reaches forge's composite actions; the same step
+      # in every such workflow. Why it is a checkout and not a `uses:`, and why it cannot
+      # be factored out: docs/versioning.md.
       - name: Check out forge
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

@@ -31,7 +31,7 @@ with:
 
 The reusable workflows check forge out at `forge-ref` to load their composite actions
 (see below), and that input **defaults to `v1`**. Pinning only the `uses:` ref leaves
-`mint-app-token`, `app-bot-identity` and `signed-commit` floating on `v1` — which is
+`mint-app-token`, `app-bot-identity`, `signed-commit` and `move-major-tag` floating on `v1` — which is
 exactly what happened in `ops`: it pinned `@v0.2.0` for weeks while running v0.1.2's
 actions, including on the job that receives `GH_APP_PRIVATE_KEY`. Set both refs, or
 neither.
@@ -72,6 +72,41 @@ The way out is to make the *path* static and the *ref* dynamic:
 
 This checkout must come **after** the consumer's own checkout, which cleans the workspace
 root and would otherwise delete `.forge`.
+
+This step is the single pattern: `bump`, `publish-deb`, `publish-deb-dist` and
+`publish-homebrew` each carry an identical `Check out forge` step, and a new reusable
+workflow that needs a composite action copies it verbatim. It cannot be shared any further.
+A composite action that did the checkout would itself have to be loaded from `.forge`, and
+a reusable workflow cannot contribute steps to another job.
+
+## Inputs every reusable workflow shares
+
+The workflows that mint an App token or load composite actions repeat the same inputs.
+Reusable workflows cannot inherit inputs, so each declares its own copy. They mean the same
+thing everywhere, and a new workflow takes them with these names and defaults:
+
+| Input | Default | Meaning |
+|---|---|---|
+| `owner` | `rsvalerio` | Owner of the repository the App token is scoped to: the bumped repo, the apt repo or the tap. |
+| `app-client-id` | `""` | The App's client id. Empty falls back to the caller's `vars.GH_APP_CLIENT_ID`. |
+| `forge-ref` | `v1` | Ref to check forge out at for its composite actions (see above). |
+| `dry-run` | `false` | Do everything short of the write that publishes. `bump` has none. `publish-crates` defaults to `true` behind a second interlock, because its write cannot be undone. |
+| `runs-on` | varies | Runner label. See below. |
+
+Two defaults differ between workflows on purpose, and aligning them would be a breaking
+change (see [What counts as a breaking change](#what-counts-as-a-breaking-change)).
+
+- **`runs-on`.** `publish-deb`, `publish-deb-dist` and `publish-homebrew` default to
+  `ubuntu-22.04`, carried over from the consumer workflows they were extracted from.
+  `bump`, `publish-crates` and `rust-ci` default to `ubuntu-latest`. For `publish-deb`,
+  the image is where the consumer's build command compiles the package, so moving it to a
+  newer image can raise the glibc the `.deb` needs. A caller that wants the other image passes
+  `runs-on`. The next major can align the defaults.
+- **Retention.** `publish-deb-dist` defaults `keep-versions` to `3`. `publish-deb` has no
+  `keep-versions` input, so it keeps every version in the pool (apt-pool-push's `0`). That
+  was the pool's behaviour before retention existed, and pruning without an opt-in would
+  delete published packages. See consuming.md,
+  [Retention](consuming.md#retention-keep-versions).
 
 ## What counts as a breaking change
 
@@ -118,6 +153,10 @@ is written**, so a refusal leaves the repository untouched:
    when the release has moved past it. A release *below* the moving tag still repoints,
    which is the `0.x` case forge itself is in today. Moving the release line to `v2` is a
    deliberate edit of `MAJOR_TAG`, made together with publishing `v2`.
+
+   The guard and the repoint live in one composite action, `actions/move-major-tag`, which
+   `release.yml` and `bump.yml`'s `major-tag:` both run, so the rule cannot drift between
+   them.
 
 Two dispatches never race: runs share a concurrency group and queue. The version tag is
 created with a plain create, which fails if the ref already exists, so it can never
