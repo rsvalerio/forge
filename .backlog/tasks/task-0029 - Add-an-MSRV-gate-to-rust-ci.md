@@ -1,10 +1,10 @@
 ---
 id: TASK-0029
 title: 'Add an MSRV gate to rust-ci'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-28 10:59'
-updated_date: '2026-09-28 16:59'
+updated_date: '2026-09-28 17:25'
 labels:
   - ci
   - ops-alignment
@@ -30,5 +30,12 @@ dedup_key: 'ops-align:msrv'
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 rust-ci can check the workspace against `rust-version`, preferably via an ops msrv command so the logic is not duplicated
+- [x] #1 rust-ci can check the workspace against `rust-version`, preferably via an ops msrv command so the logic is not duplicated
+
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+rust-ci run-msrv (default false, either engine) adds an MSRV job running `ops msrv --install` through actions/setup-rust, so the rust-version/clippy msrv logic lives only in ops. test-self rust-ci-ops runs it against ci/fixtures/rust-ci/ops (rust-version 1.85 + clippy.toml msrv).
+<!-- SECTION:NOTES:END -->
