@@ -45,9 +45,9 @@ actions/                      # composite actions — step-level, run inside the
   test-self.yml               #   forge's own CI
 ci/lint.sh                    # static checks that `ops verify` runs
 ci/fixtures/rust-ci/           # crates test-self runs rust-ci.yml against
-config/                       # canonical deny.toml / clippy.toml / rustfmt.toml
+config/                       # mirrors of ops's deny.toml / clippy.toml / rustfmt.toml templates
 templates/                    # SECURITY, CONTRIBUTING, CODE_OF_CONDUCT, issue + PR templates
-docs/
+docs/                         # foundation.md: the gate contract and shared Rust config (from ops)
 plans/                        # design docs
 ```
 
@@ -98,14 +98,17 @@ jobs:
 6. **Third-party actions are pinned to a full commit SHA, with the version in a comment**
    (`uses: actions/checkout@<40-hex sha> # v6.1.0`). These workflows hold the App private
    key and publish releases, and every consumer inherits them, so a moved tag would run
-   unreviewed code with those credentials everywhere at once. Where ops pins the same
-   action, use the same SHA. Local `./` refs and forge's own refs are exempt (the latter
-   follow [docs/versioning.md](docs/versioning.md)). `ci/lint.sh pinned-actions` enforces
-   this in test-self and `ops verify`. Dependabot (`.github/dependabot.yml`) proposes
-   bumps weekly, for workflows and every composite action, moving the SHA and its version
-   comment together: minor and patch bumps as one grouped PR, and each major version as
-   its own PR, because a major can change what every consumer runs and needs its own
-   review. A hand bump resolves the new tag's commit.
+   unreviewed code with those credentials everywhere at once. Local `./` refs and forge's
+   own refs are exempt (the latter follow [docs/versioning.md](docs/versioning.md)).
+   `ci/lint.sh pinned-actions` enforces this in test-self and `ops verify`. Dependabot
+   (`.github/dependabot.yml`) proposes bumps weekly, for workflows and every composite
+   action, moving the SHA and its version comment together: minor and patch bumps as one
+   grouped PR, and each major version as its own PR, because a major can change what every
+   consumer runs and needs its own review. A hand bump resolves the new tag's commit.
+   forge's pins do not have to match ops's SHA for the same action. Each repo's Dependabot
+   moves its own pins on its own schedule, so a rule to match would be broken by every bump
+   in either repo and enforced by nothing. Once ops's CI runs on forge's workflows, most of
+   the pins ops relies on are forge's anyway.
 
 ## Status
 
