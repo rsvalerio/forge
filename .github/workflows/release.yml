@@ -159,34 +159,22 @@ jobs:
             exit 1
           fi
 
-      # The same guard as bump.yml's "Repoint the moving major tag": never carry the moving
-      # tag UP across a major. `released > moving`, not `!=`, because forge publishes `v1`
-      # while its own releases are still 0.x — below the moving tag repoints, above it
-      # does not.
+      # Only for the composite action below; this job never writes to the tree or a ref.
+      # After the dispatch guard, so a run from another branch never gets this far.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The guard bump.yml's `major-tag:` repoint runs too, from the same action: never
+      # carry the moving tag UP across a major. `check-only` decides and writes nothing;
+      # the release job below does the repoint with the App token.
       - name: Decide whether the moving major tag moves
         id: major
-        env:
-          VERSION: ${{ inputs.version }}
-        run: |
-          set -euo pipefail
-          released_major="${VERSION#v}"
-          released_major="${released_major%%.*}"
-          moving_major="${MAJOR_TAG#v}"
-          moving_major="${moving_major%%.*}"
-          case "$moving_major" in
-            '' | *[!0-9]*)
-              echo "::error::release: MAJOR_TAG '${MAJOR_TAG}' does not look like vN." >&2
-              exit 1
-              ;;
-          esac
-          if [ "$released_major" -gt "$moving_major" ]; then
-            echo "::notice::${VERSION} is past ${MAJOR_TAG}; it will be tagged but" \
-                 "${MAJOR_TAG} stays where it is. Publish v${released_major} and migrate" \
-                 "consumers deliberately."
-            echo "move=false" >>"$GITHUB_OUTPUT"
-          else
-            echo "move=true" >>"$GITHUB_OUTPUT"
-          fi
+        uses: ./actions/move-major-tag
+        with:
+          version: ${{ inputs.version }}
+          major-tag: ${{ env.MAJOR_TAG }}
+          check-only: "true"
 
   release:
     name: Tag the release
@@ -194,7 +182,7 @@ jobs:
     if: ${{ !inputs.dry-run }}
     runs-on: ubuntu-latest
     steps:
-      # Only for the composite action; the release itself never touches the tree.
+      # Only for the composite actions; the release itself never touches the tree.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -222,27 +210,17 @@ jobs:
             -f "ref=refs/tags/${VERSION}" -f "sha=${SHA}" >/dev/null
           echo "tagged ${VERSION} at ${SHA}"
 
-      # Lightweight ref, as in bump.yml: the API cannot nest a tag object inside another,
-      # which is the mistake the `^{}` peel in the hand-cut fallback exists to avoid.
-      # PATCH with force moves an existing ref; POST creates it on a repo that never had one.
+      # Lightweight ref, through the same action as bump.yml's repoint. The action repeats
+      # the check job's guard before writing, so it cannot move the tag past a major even
+      # if this step's `if:` were wrong.
       - name: Repoint the moving major tag
         if: needs.check.outputs.move-major == 'true'
-        env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
-          REPOSITORY: ${{ github.repository }}
-          SHA: ${{ needs.check.outputs.sha }}
-        run: |
-          set -euo pipefail
-          if gh api -X PATCH "/repos/${REPOSITORY}/git/refs/tags/${MAJOR_TAG}" \
-               -f "sha=${SHA}" -F force=true >/dev/null 2>&1; then
-            echo "repointed ${MAJOR_TAG} at ${SHA}"
-          elif gh api "/repos/${REPOSITORY}/git/refs" \
-                 -f "ref=refs/tags/${MAJOR_TAG}" -f "sha=${SHA}" >/dev/null; then
-            echo "created ${MAJOR_TAG} at ${SHA}"
-          else
-            echo "::error::release: could not point ${MAJOR_TAG} at ${SHA}." >&2
-            exit 1
-          fi
+        uses: ./actions/move-major-tag
+        with:
+          version: ${{ inputs.version }}
+          major-tag: ${{ env.MAJOR_TAG }}
+          sha: ${{ needs.check.outputs.sha }}
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Summarise
         env:
