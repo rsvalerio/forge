@@ -1,13 +1,15 @@
 ---
 id: TASK-0041
 title: 'Exercise setup-ops on ARM64 and macOS runners in test-self'
-status: Triage
+status: To Do
 assignee: []
 created_date: '2026-09-28 14:01'
+updated_date: '2026-09-28 16:59'
 labels:
   - code-review-rust
   - ci
 dependencies: []
+parent_task_id: 'TASK-0045'
 modified_files:
   - .github/workflows/test-self.yml
   - actions/setup-ops/setup-ops.sh

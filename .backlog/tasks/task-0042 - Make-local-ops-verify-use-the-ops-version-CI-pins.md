@@ -1,13 +1,15 @@
 ---
 id: TASK-0042
 title: 'Make local ops verify use the ops version CI pins'
-status: Triage
+status: To Do
 assignee: []
 created_date: '2026-09-28 14:01'
+updated_date: '2026-09-28 16:59'
 labels:
   - code-review-rust
   - ci
 dependencies: []
+parent_task_id: 'TASK-0044'
 modified_files:
   - .github/workflows/test-self.yml
   - mise.toml

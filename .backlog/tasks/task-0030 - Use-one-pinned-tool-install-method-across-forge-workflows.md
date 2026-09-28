@@ -1,14 +1,16 @@
 ---
 id: TASK-0030
 title: 'Use one pinned tool-install method across forge workflows'
-status: Triage
+status: To Do
 assignee: []
 created_date: '2026-09-28 10:59'
+updated_date: '2026-09-28 16:59'
 labels:
   - ci
   - ops-alignment
 dependencies:
   - TASK-0025
+parent_task_id: 'TASK-0044'
 modified_files:
   - .github/workflows/rust-ci.yml
   - .github/workflows/bump.yml

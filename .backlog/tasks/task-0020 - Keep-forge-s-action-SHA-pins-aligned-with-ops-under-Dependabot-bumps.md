@@ -1,14 +1,15 @@
 ---
 id: TASK-0020
 title: 'Keep forge''s action SHA pins aligned with ops under Dependabot bumps'
-status: Triage
+status: To Do
 assignee: []
 created_date: '2026-09-27 13:17'
-updated_date: '2026-09-28 13:50'
+updated_date: '2026-09-28 16:59'
 labels:
   - code-review-rust
   - ci
 dependencies: []
+parent_task_id: 'TASK-0043'
 modified_files:
   - README.md
   - .github/dependabot.yml

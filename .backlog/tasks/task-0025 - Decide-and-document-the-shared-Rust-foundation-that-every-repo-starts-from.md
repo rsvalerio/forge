@@ -1,14 +1,15 @@
 ---
 id: TASK-0025
 title: 'Decide and document the shared Rust foundation that every repo starts from'
-status: Triage
+status: To Do
 assignee: []
 created_date: '2026-09-28 10:59'
-updated_date: '2026-09-28 13:52'
+updated_date: '2026-09-28 16:59'
 labels:
   - ops-alignment
   - decision
 dependencies: []
+parent_task_id: 'TASK-0043'
 modified_files:
   - docs/foundation.md
   - config

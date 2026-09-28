@@ -1,13 +1,15 @@
 ---
 id: TASK-0039
 title: 'Exercise publish-crates.yml in test-self as a dry run against a fixture crate'
-status: Triage
+status: To Do
 assignee: []
 created_date: '2026-09-28 13:58'
+updated_date: '2026-09-28 16:59'
 labels:
   - ci
   - test
 dependencies: []
+parent_task_id: 'TASK-0045'
 modified_files:
   - .github/workflows/test-self.yml
   - .github/workflows/publish-crates.yml

@@ -1,10 +1,10 @@
 ---
 id: TASK-0026
 title: 'Rebuild rust-ci.yml on ops gates with one shared setup'
-status: Triage
+status: To Do
 assignee: []
 created_date: '2026-09-28 10:59'
-updated_date: '2026-09-28 13:50'
+updated_date: '2026-09-28 16:59'
 labels:
   - ci
   - ops-alignment
@@ -12,6 +12,7 @@ dependencies:
   - TASK-0023
   - TASK-0021
   - TASK-0025
+parent_task_id: 'TASK-0044'
 modified_files:
   - .github/workflows/rust-ci.yml
   - docs/consuming.md

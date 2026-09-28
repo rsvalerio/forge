@@ -1,15 +1,16 @@
 ---
 id: TASK-0028
 title: 'Reconcile forge config/clippy.toml with rust-make-clippy-pedantic''s lint policy'
-status: Triage
+status: To Do
 assignee: []
 created_date: '2026-09-28 10:59'
-updated_date: '2026-09-28 13:52'
+updated_date: '2026-09-28 16:59'
 labels:
   - ops-alignment
   - lint
 dependencies:
   - TASK-0025
+parent_task_id: 'TASK-0043'
 modified_files:
   - config/clippy.toml
 priority: low

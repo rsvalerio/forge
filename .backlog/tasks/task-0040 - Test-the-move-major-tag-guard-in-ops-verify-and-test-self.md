@@ -1,13 +1,15 @@
 ---
 id: TASK-0040
 title: 'Test the move-major-tag guard in ops verify and test-self'
-status: Triage
+status: To Do
 assignee: []
 created_date: '2026-09-28 13:59'
+updated_date: '2026-09-28 16:59'
 labels:
   - ci
   - test
 dependencies: []
+parent_task_id: 'TASK-0045'
 modified_files:
   - actions/move-major-tag/move-major-tag.sh
   - .ops.toml
