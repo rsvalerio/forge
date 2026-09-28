@@ -62,6 +62,13 @@ program = "actions/apt-pool-push/pool-update.test.sh"
 help = "apt-pool-push pool logic against a local stand-in repository"
 category = "Code Quality"
 
+# The major guard is what stops a v2 release carrying `v1` across a major; a regression
+# would otherwise only show on a real release. Check-only mode needs no network or token.
+[commands.test-move-major-tag]
+program = "actions/move-major-tag/move-major-tag.test.sh"
+help = "move-major-tag's major guard: below, equal, above and non-numeric majors"
+category = "Code Quality"
+
 [commands.verify]
 commands = [
   "actionlint",
@@ -72,6 +79,7 @@ commands = [
   "lint-pinned-actions",
   "lint-yaml",
   "test-pool-update",
+  "test-move-major-tag",
 ]
 fail_fast = false
 help = "forge's gate: every lint and local shell test (test-self's lint job runs this)"
