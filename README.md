@@ -50,17 +50,19 @@ ci/fixtures/rust-ci/          # crates test-self runs rust-ci.yml against
 config/                       # mirrors of ops's deny.toml / clippy.toml / rustfmt.toml templates
 templates/                    # SECURITY, CONTRIBUTING, CODE_OF_CONDUCT, issue + PR templates
 docs/                         # foundation.md: the gate contract and shared Rust config (from ops)
-mise.toml                     # every tool version: forge's workflows, and local ops verify
+mise.toml                     # every tool version: forge's workflows, and the local gates
 plans/                        # design docs
 ```
 
-`ops verify` is the gate: run it before you push, and test-self's lint job runs the same
-command, so its check list lives only in `.ops.toml`. The tools it needs, ops included, are
-pinned in `mise.toml` (`mise install`), and so is every other tool a forge workflow
-installs: `actions/setup-tools` is the one way they install anything, and it reads only
-that file (ops through `actions/setup-ops`, at the `ops` pin). So test-self lints with the
-same actionlint, shellcheck and ops you run locally, and `rust-ci` and `bump` run the
-cargo-deny, cocogitto and cargo-edit of the forge ref they are called at.
+forge has the two gates of the [foundation
+contract](docs/foundation.md#the-gate-contract): `ops verify` (every lint) and `ops qa`
+(the local shell tests). Run both before you push; test-self runs each as its own check
+under the same name, so their check lists live only in `.ops.toml`. The tools they need,
+ops included, are pinned in `mise.toml` (`mise install`), and so is every other tool a
+forge workflow installs: `actions/setup-tools` is the one way they install anything, and
+it reads only that file (ops through `actions/setup-ops`, at the `ops` pin). So test-self
+lints with the same actionlint, shellcheck and ops you run locally, and `rust-ci` and
+`bump` run the cargo-deny, cocogitto and cargo-edit of the forge ref they are called at.
 
 Those pins move by hand: Dependabot bumps `jdx/mise-action`'s SHA but reads neither
 `mise.toml` nor the mise binary version `actions/setup-tools` passes the action
@@ -68,7 +70,7 @@ Those pins move by hand: Dependabot bumps `jdx/mise-action`'s SHA but reads neit
 `jdx/mise-action` and at least once a month otherwise: `mise latest <tool>` for each tool
 in `mise.toml` (the newest [ops release](https://github.com/rsvalerio/ops/releases) for
 `ops`), and the newest [jdx/mise release](https://github.com/jdx/mise/releases) for
-`version:`. Then `mise install` and `ops verify` before pushing, so a new actionlint or
+`version:`. Then `mise install`, `ops verify` and `ops qa` before pushing, so a new actionlint or
 shellcheck check lands together with its fixes.
 
 Composite actions and reusable workflows are not interchangeable: an action is a *step*

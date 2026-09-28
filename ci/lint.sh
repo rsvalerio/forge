@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # forge's static checks, one per subcommand. `ops verify` (.ops.toml) calls each one, and
-# test-self.yml's lint job runs `ops verify`, so a new subcommand is wired in .ops.toml only.
+# test-self.yml's `ops verify` check runs it, so a new subcommand is wired in .ops.toml only.
 #
 #   ci/lint.sh shellcheck | executable | action-yml | config-toml | pinned-actions
 #

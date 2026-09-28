@@ -15,9 +15,10 @@ permissions:
   contents: read
 
 jobs:
-  # The gate is `ops verify`, defined once in .ops.toml: this job runs exactly what a
-  # developer or wave runner runs locally, so a check is added there and nowhere else.
-  lint:
+  # forge's two gates, `ops verify` (lints) and `ops qa` (local shell tests), each defined
+  # once in .ops.toml and each its own check here: these jobs run exactly what a developer
+  # or wave runner runs locally, so a check is added there and nowhere else.
+  verify:
     name: ops verify
     runs-on: ubuntu-latest
     steps:
@@ -37,6 +38,25 @@ jobs:
       # Every check .ops.toml lists under [commands.verify]; see there for what each does.
       - name: ops verify
         run: ops verify
+
+  # The shell tests need only ops plus what the runner image ships (git, dpkg-deb); the
+  # move-major-tag test stubs `gh` itself.
+  qa:
+    name: ops qa
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install pinned tools (mise.toml)
+        uses: ./actions/setup-tools
+        with:
+          tools: ops
+
+      # Every check .ops.toml lists under [commands.qa]; see there for what each does.
+      - name: ops qa
+        run: ops qa
 
   # rust-ci.yml is the most-consumed workflow, and a toolchain-action default can change
   # what it fails on without any edit here (setup-rust-toolchain v2's
@@ -95,9 +115,9 @@ jobs:
       forge-ref: ${{ github.sha }}
       run-msrv: true
 
-  # setup-ops as an action: mise.toml's ops pin installs through action.yml (the lint job
-  # reaches setup-ops.sh through setup-tools instead; setup-ops-platforms below covers
-  # ARM64 Linux and macOS), and the failure paths.
+  # setup-ops as an action: mise.toml's ops pin installs through action.yml (the verify
+  # and qa jobs reach setup-ops.sh through setup-tools instead; setup-ops-platforms below
+  # covers ARM64 Linux and macOS), and the failure paths.
   setup-ops:
     name: setup-ops installs the pin, rejects what it cannot verify
     runs-on: ubuntu-latest
@@ -160,12 +180,12 @@ jobs:
               || { echo "::error::setup-ops installed ops despite failing (${dir})"; exit 1; }
           done
 
-  # The lint job only ever installs the x86_64 Linux build. setup-ops also maps ARM64
-  # Linux and macOS to their dist targets, and macOS takes the `shasum -a 256` fallback
+  # The verify and qa jobs only ever install the x86_64 Linux build. setup-ops also maps
+  # ARM64 Linux and macOS to their dist targets, and macOS takes the `shasum -a 256` fallback
   # where sha256sum is absent, so a consumer there would otherwise be the first to run
   # those paths. Both runners are ARM64; the assert fails if an image change moves one
   # off it, rather than quietly testing X64 twice. The version is mise.toml's ops pin,
-  # the one the lint job installs.
+  # the one the verify and qa jobs install.
   setup-ops-platforms:
     name: setup-ops on ${{ matrix.runner }}
     strategy:

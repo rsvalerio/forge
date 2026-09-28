@@ -1,10 +1,11 @@
-# The one list of tool versions forge's workflows install, and of the tools `ops verify`
-# needs locally. Every workflow installs through actions/setup-tools, which reads this
-# file: test-self.yml from its own checkout, rust-ci.yml and bump.yml from the forge
-# checkout at `forge-ref`. So a version is bumped here and CI follows. Locally,
-# `mise install` fetches the same versions; mise resolves them per project, so the
-# shellcheck that actionlint shells out to is found here even on a machine with no
-# global shellcheck default, and `ops verify` runs on the ops CI runs.
+# The one list of tool versions forge's workflows install, and of the tools forge's
+# gates (`ops verify`, `ops qa`) need locally. Every workflow installs through
+# actions/setup-tools, which reads this file: test-self.yml from its own checkout,
+# rust-ci.yml and bump.yml from the forge checkout at `forge-ref`. So a version is
+# bumped here and CI follows. Locally, `mise install` fetches the same versions; mise
+# resolves them per project, so the shellcheck that actionlint shells out to is found
+# here even on a machine with no global shellcheck default, and the gates run on the ops
+# CI runs.
 #
 # Nothing bumps these automatically; README.md ("Layout") gives the cadence, shared with
 # the mise version actions/setup-tools pins on its jdx/mise-action step.
@@ -19,7 +20,7 @@ cargo-machete = "github:bnjbvr/cargo-machete"
 cargo-edit = "cargo:cargo-edit"
 
 [tools]
-# forge's own gate (`ops verify`, test-self's lint job).
+# forge's own gates (`ops verify`, `ops qa`; test-self runs each as a check).
 actionlint = "1.7.12"
 shellcheck = "0.11.0"
 yq = "4.53.6"
