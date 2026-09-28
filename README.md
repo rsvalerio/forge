@@ -42,6 +42,7 @@ actions/                      # composite actions — step-level, run inside the
   publish-crates.yml          #   real publish is a per-crate opt-in (PLAN.md §5)
   test-self.yml               #   forge's own CI
 ci/lint.sh                    # test-self's lint checks, shared with `ops verify`
+ci/fixtures/rust-ci/           # crates test-self runs rust-ci.yml against
 config/                       # canonical deny.toml / clippy.toml / rustfmt.toml
 templates/                    # SECURITY, CONTRIBUTING, CODE_OF_CONDUCT, issue + PR templates
 docs/
@@ -51,6 +52,14 @@ plans/                        # design docs
 `ops verify` runs test-self's lint job and the local shell tests before you push; the tools
 it needs are pinned in `mise.toml` (`mise install`), which test-self's lint job installs
 from too, so both run the same actionlint and shellcheck.
+
+Those pins move by hand: Dependabot bumps `jdx/mise-action`'s SHA but reads neither
+`mise.toml` nor the mise binary version that test-self's lint job passes the action
+(`version:`). Bump all of them together, in one PR, whenever a Dependabot PR moves
+`jdx/mise-action` and at least once a month otherwise: `mise latest <tool>` for each tool
+in `mise.toml`, and the newest [jdx/mise release](https://github.com/jdx/mise/releases)
+for `version:`. Then `mise install` and `ops verify` before pushing, so a new actionlint
+or shellcheck check lands together with its fixes.
 
 Composite actions and reusable workflows are not interchangeable: an action is a *step*
 inside the caller's job; a reusable workflow is a whole *job* with its own runner.
@@ -89,8 +98,10 @@ jobs:
    action, use the same SHA. Local `./` refs and forge's own refs are exempt (the latter
    follow [docs/versioning.md](docs/versioning.md)). `ci/lint.sh pinned-actions` enforces
    this in test-self and `ops verify`. Dependabot (`.github/dependabot.yml`) proposes
-   bumps weekly, for workflows and every composite action, as one grouped PR that moves
-   the SHA and its version comment together; a hand bump resolves the new tag's commit.
+   bumps weekly, for workflows and every composite action, moving the SHA and its version
+   comment together: minor and patch bumps as one grouped PR, and each major version as
+   its own PR, because a major can change what every consumer runs and needs its own
+   review. A hand bump resolves the new tag's commit.
 
 ## Status
 
