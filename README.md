@@ -35,8 +35,10 @@ actions/                      # composite actions — step-level, run inside the
   deb-from-dist/              #   repackage cargo-dist linux-gnu tarballs into per-arch .debs
   move-major-tag/             #   repoint the moving major tag (v1), never across a major
   setup-ops/                  #   install a pinned, sha256-verified ops release
+  setup-tools/                #   install tools at mise.toml's pins: the one install method
+  setup-rust/                 #   toolchain + compile cache + tools, shared by rust-ci's ops jobs
 .github/workflows/            # reusable workflows — job-level, own runner
-  rust-ci.yml                 #   fmt / check / clippy / build / test / deny
+  rust-ci.yml                 #   Rust gates: cargo jobs, or ops gates with `engine: ops`
   bump.yml                    #   cocogitto version bump, signed commit + tag
   publish-homebrew.yml
   publish-deb.yml             #   build a .deb with the consumer's command, then apt-pool-push
@@ -44,26 +46,30 @@ actions/                      # composite actions — step-level, run inside the
   publish-crates.yml          #   real publish is a per-crate opt-in (PLAN.md §5)
   test-self.yml               #   forge's own CI
 ci/lint.sh                    # static checks that `ops verify` runs
-ci/fixtures/rust-ci/           # crates test-self runs rust-ci.yml against
+ci/fixtures/rust-ci/          # crates test-self runs rust-ci.yml against
 config/                       # mirrors of ops's deny.toml / clippy.toml / rustfmt.toml templates
 templates/                    # SECURITY, CONTRIBUTING, CODE_OF_CONDUCT, issue + PR templates
 docs/                         # foundation.md: the gate contract and shared Rust config (from ops)
+mise.toml                     # every tool version: forge's workflows, and local ops verify
 plans/                        # design docs
 ```
 
 `ops verify` is the gate: run it before you push, and test-self's lint job runs the same
-command, so its check list lives only in `.ops.toml`. The tools it needs are pinned in
-`mise.toml` (`mise install`), which test-self's lint job installs from too, so both run the
-same actionlint and shellcheck; CI installs ops itself with `actions/setup-ops`.
+command, so its check list lives only in `.ops.toml`. The tools it needs, ops included, are
+pinned in `mise.toml` (`mise install`), and so is every other tool a forge workflow
+installs: `actions/setup-tools` is the one way they install anything, and it reads only
+that file (ops through `actions/setup-ops`, at the `ops` pin). So test-self lints with the
+same actionlint, shellcheck and ops you run locally, and `rust-ci` and `bump` run the
+cargo-deny, cocogitto and cargo-edit of the forge ref they are called at.
 
 Those pins move by hand: Dependabot bumps `jdx/mise-action`'s SHA but reads neither
-`mise.toml`, nor the mise binary version that test-self's lint job passes the action
-(`version:`), nor the ops version on its `setup-ops` step. Bump all of them together, in
-one PR, whenever a Dependabot PR moves `jdx/mise-action` and at least once a month
-otherwise: `mise latest <tool>` for each tool in `mise.toml`, the newest
-[jdx/mise release](https://github.com/jdx/mise/releases) for `version:`, and the newest
-[ops release](https://github.com/rsvalerio/ops/releases) for `setup-ops`. Then `mise install` and `ops verify` before pushing, so a new actionlint
-or shellcheck check lands together with its fixes.
+`mise.toml` nor the mise binary version `actions/setup-tools` passes the action
+(`version:`). Bump them together, in one PR, whenever a Dependabot PR moves
+`jdx/mise-action` and at least once a month otherwise: `mise latest <tool>` for each tool
+in `mise.toml` (the newest [ops release](https://github.com/rsvalerio/ops/releases) for
+`ops`), and the newest [jdx/mise release](https://github.com/jdx/mise/releases) for
+`version:`. Then `mise install` and `ops verify` before pushing, so a new actionlint or
+shellcheck check lands together with its fixes.
 
 Composite actions and reusable workflows are not interchangeable: an action is a *step*
 inside the caller's job; a reusable workflow is a whole *job* with its own runner.
@@ -113,7 +119,7 @@ jobs:
 ## Status
 
 Everything in [plans/PLAN.md](plans/PLAN.md) that lives *inside this repository* is
-implemented: the five composite actions, the six reusable workflows, `test-self.yml`,
+implemented: the composite actions, the six reusable workflows, `test-self.yml`,
 the shared configs, the templates and the docs.
 
 `v1` is published (currently at `v0.4.0`), and these repos call forge today:

@@ -31,10 +31,12 @@ with:
 
 The reusable workflows check forge out at `forge-ref` to load their composite actions
 (see below), and that input **defaults to `v1`**. Pinning only the `uses:` ref leaves
-`mint-app-token`, `app-bot-identity`, `signed-commit` and `move-major-tag` floating on `v1` — which is
-exactly what happened in `ops`: it pinned `@v0.2.0` for weeks while running v0.1.2's
-actions, including on the job that receives `GH_APP_PRIVATE_KEY`. Set both refs, or
-neither.
+`mint-app-token`, `app-bot-identity`, `signed-commit`, `move-major-tag`, `setup-tools` and
+`setup-rust` floating on `v1` — and with `setup-tools`, the tool versions in forge's
+`mise.toml` too. That is exactly what happened in `ops`: it pinned `@v0.2.0` for weeks
+while running v0.1.2's actions, including on the job that receives `GH_APP_PRIVATE_KEY`.
+Set both refs, or neither. `rust-ci` takes `forge-ref` too: its deps job and every
+`engine: ops` job load `setup-tools` this way.
 
 ## The one exception: forge-testbed floats on `main`
 
@@ -73,8 +75,8 @@ The way out is to make the *path* static and the *ref* dynamic:
 This checkout must come **after** the consumer's own checkout, which cleans the workspace
 root and would otherwise delete `.forge`.
 
-This step is the single pattern: `bump`, `publish-deb`, `publish-deb-dist` and
-`publish-homebrew` each carry an identical `Check out forge` step, and a new reusable
+This step is the single pattern: `bump`, `publish-deb`, `publish-deb-dist`,
+`publish-homebrew` and `rust-ci` each carry an identical `Check out forge` step, and a new reusable
 workflow that needs a composite action copies it verbatim. It cannot be shared any further.
 A composite action that did the checkout would itself have to be loaded from `.forge`, and
 a reusable workflow cannot contribute steps to another job.
@@ -121,6 +123,36 @@ Requiring a major bump:
 
 Not breaking: adding an optional input with a default that preserves current behaviour,
 adding a new workflow or action, or clarifying documentation.
+
+## rust-ci `engine: ops`
+
+Rebuilding `rust-ci` on ops gates changes what it runs: clippy and build gain
+`--all-targets`, every cargo command gains `--locked`, tests run under nextest with a
+separate doctest step, and `ops verify-check` and `ops sec` add gates `engine: cargo` never
+had (consuming.md lists them). Each of those can turn a green consumer red, which makes it
+a breaking change by the rules above. So on `v1` it ships **opt-in**:
+
+- `engine` defaults to `cargo`, which runs exactly what it ran before. Adding `engine`,
+  `run-sec` (which only `engine: ops` reads) and `run-msrv` (default off) is the "optional
+  input with a default that preserves current behaviour" case.
+- Consumers opt in one at a time — `dbsec` and `forge-testbed` first — by passing
+  `engine: ops`, and fix whatever it surfaces in their own repository.
+- The **next major** flips the default to `ops`, and removes the deprecated `cargo-flags`,
+  `clippy-args` and `test-args` together with `engine: cargo`'s jobs. No separate major is
+  cut for it before then.
+
+Pinning tools is not treated as breaking. `rust-ci`'s cargo-deny and `bump`'s cocogitto and
+cargo-edit used to install unversioned, which on the day they were pinned resolved to the
+versions `mise.toml` now names. Bumping a pin later is an ordinary forge change, reviewed
+like one — a cargo-deny release with a stricter check is exactly the gate tightening above.
+Two side effects of routing `bump`'s `install-tools` through `setup-tools`, neither of
+which reaches a known caller (`ops`, `dbsec` and `forge-testbed` all use the default list):
+
+- A name forge's `mise.toml` does not pin now fails instead of installing the latest, so a
+  caller adding a tool of its own passes `name@version`.
+- A tool already on a self-hosted runner's `PATH` is no longer skipped. It is installed at
+  the pinned version, which is the point: a binary on `PATH` says nothing about which
+  version it is.
 
 ## Cutting a release
 
