@@ -44,8 +44,9 @@ Every Rust repo exposes two gates, and they mean the same thing in every repo:
 **CI runs both, in check-only mode.** `verify` rewrites files (fmt, whitespace fixers), so
 CI runs `ops verify-check`, which swaps each rewriter for its check and writes nothing. CI
 also sets `OPS__CARGO__LOCKED=true`, so every cargo command builds against the committed
-`Cargo.lock`. forge's `rust-ci.yml` still runs raw cargo steps until forge TASK-0026
-moves it onto these gates.
+`Cargo.lock`. forge's `rust-ci.yml` does exactly this with `engine: ops`, which is opt-in
+on v1; its default engine still runs raw cargo steps until the next major flips it (see
+[consuming.md](consuming.md#engine-ops)).
 
 `ops explain verify` and `ops explain qa` print exactly what each gate runs in a given repo.
 A repo that needs more adds to a gate with `[extend.verify]` or `[extend.qa]` rather than
@@ -89,7 +90,7 @@ In a Rust repo, with ops 0.74.0 or later:
    `pre-release`) becomes an `[extend.*]` of one of them, or is removed. Git hook commands
    (ops's `run-before-commit` and `run-before-push`) compose `verify` and `qa` rather than
    listing checks of their own.
-5. Call forge's `rust-ci.yml` for CI, so CI runs the same gates.
+5. Call forge's `rust-ci.yml` with `engine: ops` for CI, so CI runs the same gates.
 
 ## Updating
 
