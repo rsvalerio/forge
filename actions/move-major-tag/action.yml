@@ -1,0 +1,58 @@
+name: Move major tag
+description: >-
+  Repoint a moving major tag (e.g. `v1`) at a release, as a lightweight ref, unless the
+  release's major is above the tag's — a v2 release never moves `v1`. `check-only` runs
+  the guard alone and writes nothing, for a read-only job that decides before any ref is
+  written.
+
+# Shared by release.yml (forge's own releases, where the guard runs in the read-only check
+# job and the repoint in the release job) and bump.yml (`major-tag:` consumers). Keep the
+# guard and the repoint here, in move-major-tag.sh, so neither copy can drift.
+
+inputs:
+  version:
+    description: The release just cut (or about to be), e.g. `v0.4.0`. Its major is compared with `major-tag`'s.
+    required: true
+  major-tag:
+    description: The moving major tag, e.g. `v1`.
+    required: true
+  check-only:
+    description: Decide whether the tag moves and set `move`, but write no ref. Needs no `sha` or `token`.
+    required: false
+    default: "false"
+  sha:
+    description: Commit to point the tag at. Required unless `check-only` is true.
+    required: false
+    default: ""
+  token:
+    description: >-
+      Token that can write refs in `repository` (`contents: write`). Required unless
+      `check-only` is true.
+    required: false
+    default: ""
+  repository:
+    description: Repository whose tag moves, as `owner/name`.
+    required: false
+    default: ${{ github.repository }}
+
+outputs:
+  move:
+    description: >-
+      `true` when the tag moves (or, under `check-only`, would move); `false` when the
+      release is past the tag's major and the tag was left in place.
+    value: ${{ steps.move.outputs.move }}
+
+runs:
+  using: composite
+  steps:
+    - name: Move the major tag
+      id: move
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+        MAJOR_TAG: ${{ inputs.major-tag }}
+        CHECK_ONLY: ${{ inputs.check-only }}
+        SHA: ${{ inputs.sha }}
+        GH_TOKEN: ${{ inputs.token }}
+        REPOSITORY: ${{ inputs.repository }}
+      run: '"${GITHUB_ACTION_PATH}/move-major-tag.sh"'

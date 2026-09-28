@@ -1,10 +1,10 @@
 ---
 id: TASK-0022
 title: 'Keep Dependabot major-version bumps out of the weekly github-actions group'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-28 10:59'
-updated_date: '2026-09-28 13:43'
+updated_date: '2026-09-28 13:58'
 labels:
   - ci
   - dependabot
@@ -32,6 +32,13 @@ dedup_key: 'ops-align:dependabot-majors'
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 The group only takes minor and patch updates (`update-types`); each major arrives as its own PR
-- [ ] #2 README design rule 6 states the policy
+- [x] #1 The group only takes minor and patch updates (`update-types`); each major arrives as its own PR
+- [x] #2 README design rule 6 states the policy
+
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+dependabot.yml group now carries update-types: [minor, patch], so each major arrives as its own PR; README design rule 6 states the policy.
+<!-- SECTION:NOTES:END -->

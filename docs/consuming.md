@@ -25,11 +25,12 @@ jobs:
     uses: rsvalerio/forge/.github/workflows/rust-ci.yml@v1
 ```
 
-Per-repo variants:
+Per-repo variants. `dbsec` calls `rust-ci.yml` today; `ops` still runs its own `ci.yml`,
+so its row is the wrapper it would need, not one it has:
 
 | Repo | Wrapper inputs |
 |---|---|
-| `ops` | `test-args: --ignored`, `env-json: '{"OPS_LOG_LEVEL":"debug"}'` |
+| `ops` (not adopted) | `test-args: --ignored`, `env-json: '{"OPS_LOG_LEVEL":"debug"}'` |
 | `oxydraw` | `working-directory: backend` (its Cargo workspace is not at the root) |
 | `event0` | defaults; expect a backlog of failures on the first run |
 | `dbsec` | `runs-on: blacksmith-4vcpu-ubuntu-2404`, `use-sccache: false`, `run-tests: false` |
@@ -585,8 +586,9 @@ metadata inputs (`description`, `maintainer`, `section`, `depends`, `homepage`,
 
 ## publish-crates
 
-**No real consumer today, deliberately** (PLAN.md §5). The workflow exists so the
-capability is proven, but crates.io publication is irreversible — a yanked version stays
+**One consumer, `dbsec`, and only behind a manual opt-in** (PLAN.md §5): its wrapper runs
+`dry-run` unless a `real` dispatch input is set. The opt-in is deliberate, because
+crates.io publication is irreversible — a yanked version stays
 visible forever and the crate name is claimed permanently — so activating it is a separate,
 per-crate decision.
 
@@ -614,6 +616,39 @@ For authentication prefer `auth: trusted` (crates.io Trusted Publishing via OIDC
 secret) over a long-lived `CARGO_REGISTRY_TOKEN` — the same reasoning that retired the
 `HOMEBREW_TAP_TOKEN` PAT. **Verify crates.io's current Trusted Publishing setup steps before
 relying on it**; setup is per-crate on crates.io and cannot be Terraform-managed today.
+
+---
+
+## setup-ops
+
+A composite action that installs an exact [ops](https://github.com/rsvalerio/ops) release
+and puts it on `PATH`, so a job can run `ops verify` (or any other ops command) instead of
+repeating its checks as workflow steps. ops is not on crates.io; this is the pinned,
+verified way to get it onto a runner.
+
+```yaml
+      - uses: rsvalerio/forge/actions/setup-ops@v1
+        with:
+          version: 0.72.0
+      - run: ops verify
+```
+
+- **`version` is required and exact.** `0.72.0` or `v0.72.0`; there is no `latest`, so
+  the gate only changes in a commit. A version with no release fails the step.
+- **Checksums.** The platform's tarball is checked against the release's `.sha256`
+  sidecar before it is extracted. A mismatch fails the step. The sidecar comes from the
+  same release, so it proves the download is intact, not that the release is the one you
+  reviewed: set `sha256` to the tarball's hash (from the release's `sha256.sum`) to pin
+  that too.
+- **Platforms.** Linux and macOS runners, X64 and ARM64: the four targets ops publishes.
+  Any other runner fails the step rather than guessing an asset name.
+- **`ops --version`** is asserted to report the requested version before the binary is
+  installed, so a binary that does not run on the runner never lands on `PATH`.
+- The download uses `gh` with `token` (default `github.token`), which avoids anonymous
+  rate limits. `install-dir` defaults to a directory under `RUNNER_TEMP`.
+- Outputs: `path` (the installed binary) and `version`.
+
+forge's own test-self lint job pins its ops version on its `setup-ops` step.
 
 ---
 

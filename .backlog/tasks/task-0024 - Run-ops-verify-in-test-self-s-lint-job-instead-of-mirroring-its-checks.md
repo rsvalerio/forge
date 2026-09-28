@@ -1,10 +1,10 @@
 ---
 id: TASK-0024
 title: 'Run ops verify in test-self''s lint job instead of mirroring its checks'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-28 10:59'
-updated_date: '2026-09-28 13:43'
+updated_date: '2026-09-28 13:59'
 labels:
   - ci
   - ops-alignment
@@ -34,6 +34,13 @@ dedup_key: 'ops-align:test-self-ops-verify'
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 test-self's lint job installs ops via setup-ops and runs `ops verify` (or the CI-safe subset), so the check list lives only in .ops.toml
-- [ ] #2 check-yaml runs in CI
+- [x] #1 test-self's lint job installs ops via setup-ops and runs `ops verify` (or the CI-safe subset), so the check list lives only in .ops.toml
+- [x] #2 check-yaml runs in CI
+
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+test-self lint job (now named "ops verify") installs ops 0.72.0 via ./actions/setup-ops and runs `ops verify`; the per-check steps are gone, so .ops.toml [commands.verify] is the only check list (comments in .ops.toml, ci/lint.sh, mise.toml, README updated). check-yaml (lint-yaml) now runs in CI. The separate apt-pool-push job was dropped because ops verify already runs pool-update.test.sh (main ruleset requires no status checks, verified read-only). CI ops version is pinned on that setup-ops step.
+<!-- SECTION:NOTES:END -->

@@ -1,10 +1,10 @@
 ---
 id: TASK-0036
 title: 'code-review-plan-wave7'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-28 13:43'
-updated_date: '2026-09-28 13:43'
+updated_date: '2026-09-28 14:00'
 labels:
   - code-review-wave
 dependencies:
@@ -41,4 +41,7 @@ Rationale: release/publish workflow duplication. Extract the moving-major-tag gu
 
 <!-- SECTION:NOTES:BEGIN -->
 Overlaps: none
+
+Branch: code-review/TASK-0036
+
 <!-- SECTION:NOTES:END -->

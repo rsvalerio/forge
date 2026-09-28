@@ -1,10 +1,10 @@
 ---
 id: TASK-0037
 title: 'code-review-plan-wave8'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-28 13:43'
-updated_date: '2026-09-28 13:43'
+updated_date: '2026-09-28 13:57'
 labels:
   - code-review-wave
 dependencies:
@@ -37,4 +37,7 @@ Rationale: docs accuracy. Fix stale adoption/v1 claims in README and the consume
 
 <!-- SECTION:NOTES:BEGIN -->
 Overlaps: TASK-0034/wave5 (README.md), TASK-0035/wave6 (docs/consuming.md).
+
+Branch: code-review/TASK-0037
+
 <!-- SECTION:NOTES:END -->

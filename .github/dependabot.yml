@@ -11,9 +11,14 @@ updates:
       - "/actions/*"
     schedule:
       interval: weekly
-    # One PR per week for every action, so a bump is reviewed and lands everywhere at once.
+    # Minor and patch bumps: one PR per week for every action, so a bump is reviewed and
+    # lands everywhere at once. Majors are left out of the group on purpose, so each one
+    # arrives as its own PR: forge's workflows run in every consumer via `@v1`, and a
+    # major can change their behaviour (setup-rust-toolchain v2's `build-warnings: deny`
+    # default rode in unnoticed alongside patches in #16).
     groups:
       github-actions:
         patterns: ["*"]
+        update-types: ["minor", "patch"]
     commit-message:
       prefix: "ci"

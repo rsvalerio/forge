@@ -1,10 +1,10 @@
 ---
 id: TASK-0019
 title: 'Automate bumps for mise.toml tool pins and the mise version in test-self'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-27 13:17'
-updated_date: '2026-09-28 13:43'
+updated_date: '2026-09-28 13:58'
 labels:
   - code-review-rust
   - ci
@@ -31,5 +31,12 @@ ordinal: 1000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 mise.toml tool versions and test-self's mise version are bumped by an automated PR (e.g. Renovate's mise manager) or the README documents the manual bump cadence
+- [x] #1 mise.toml tool versions and test-self's mise version are bumped by an automated PR (e.g. Renovate's mise manager) or the README documents the manual bump cadence
+
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Documented path taken (no Renovate: it would need an App install / settings change outside the repo). README "Layout" now documents the manual bump: mise.toml tools and test-self mise `version:` together, whenever a Dependabot PR moves jdx/mise-action and at least monthly, via `mise latest <tool>` + jdx/mise releases, then mise install + ops verify. mise.toml header and the test-self step comment point to it.
+<!-- SECTION:NOTES:END -->

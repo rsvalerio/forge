@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# forge's static checks, one per subcommand. test-self.yml's lint job and `ops verify`
-# both call this script, so the local gate and CI run the same checks and cannot drift.
+# forge's static checks, one per subcommand. `ops verify` (.ops.toml) calls each one, and
+# test-self.yml's lint job runs `ops verify`, so a new subcommand is wired in .ops.toml only.
 #
 #   ci/lint.sh shellcheck | executable | action-yml | config-toml | pinned-actions
 #

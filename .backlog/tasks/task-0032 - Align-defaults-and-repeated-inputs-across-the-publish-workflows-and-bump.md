@@ -1,10 +1,10 @@
 ---
 id: TASK-0032
 title: 'Align defaults and repeated inputs across the publish workflows and bump'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-28 10:59'
-updated_date: '2026-09-28 13:43'
+updated_date: '2026-09-28 13:59'
 labels:
   - ci
   - duplication
@@ -32,6 +32,13 @@ dedup_key: 'ops-align:publish-defaults'
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Defaults are consistent (or the difference is documented)
-- [ ] #2 The repeated forge checkout is shared or documented as the single pattern
+- [x] #1 Defaults are consistent (or the difference is documented)
+- [x] #2 The repeated forge checkout is shared or documented as the single pattern
+
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Defaults NOT changed (changing runs-on or keep-versions would change behaviour for unmodified @v1 callers = breaking under docs/versioning.md). Documented instead: new docs/versioning.md section "Inputs every reusable workflow shares" (shared input table, why runs-on 22.04 vs latest and keep-versions 3 vs 0 differ); descriptions added to owner/app-client-id/forge-ref/runs-on in publish-deb, publish-deb-dist, publish-homebrew and bump runs-on; the Check out forge step is documented as the single pattern (cannot be factored: a composite action doing it would itself load from .forge) with a pointer comment on each copy.
+<!-- SECTION:NOTES:END -->

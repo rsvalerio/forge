@@ -116,6 +116,9 @@ on:
         required: false
         default: cargo-edit,cocogitto
       runs-on:
+        description: >-
+          Runner label. The publish workflows default to ubuntu-22.04 instead; see
+          docs/versioning.md for why the two are not aligned.
         type: string
         required: false
         default: ubuntu-latest
@@ -328,66 +331,18 @@ jobs:
       # `ops` worked around it with an exact pin. An unpinned consumer is only safe if the
       # tag it pins moves on its own.
       #
-      # Lightweight ref, deliberately: `git tag -f` produces a tag *object*, and pointing
-      # one tag object at another is what versioning.md's `^{}` peel exists to avoid. The
-      # API only ever creates lightweight refs here, so the shape cannot drift.
+      # move-major-tag owns both the guard (never carry the tag UP across a major) and the
+      # lightweight-ref repoint; forge's own release.yml runs the same action, so a fix to
+      # either reaches both.
       - name: Repoint the moving major tag
+        id: major
         if: steps.cog.outputs.bumped == 'true' && inputs.signed && inputs.major-tag != ''
-        env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
-          REPOSITORY: ${{ github.repository }}
-          MAJOR: ${{ inputs.major-tag }}
-          TAG: ${{ steps.cog.outputs.tag }}
-          SHA: ${{ steps.signed.outputs.sha }}
-        run: |
-          set -euo pipefail
-          # Never carry the moving tag UP across a major. versioning.md is explicit that a
-          # v2 release must not repoint `v1` — consumers migrate one at a time so a bad
-          # major cannot take every pipeline down at once. Automation that ignored that
-          # would do the one thing the policy forbids, silently, on the release where it
-          # matters most.
-          #
-          # The test is `released > moving`, not `released != moving`, because a moving
-          # tag legitimately runs ahead of the version line while a project is pre-1.0:
-          # forge publishes `v1` today while its own releases are 0.x, which is the whole
-          # point of a moving tag consumers can pin before the API is frozen. Equal (the
-          # v1.x case versioning.md describes) and below (the 0.x case forge is actually
-          # in) both repoint; only a release that has moved past the tag is refused.
-          released_major="${TAG#v}"
-          released_major="${released_major%%.*}"
-          moving_major="${MAJOR#v}"
-          moving_major="${moving_major%%.*}"
-          # `-gt` on a non-numeric operand aborts with "integer expression expected",
-          # which is a baffling way for a release to fail. Say what is actually wrong.
-          case "${released_major}:${moving_major}" in
-            *[!0-9:]* | :* | *: | *::*)
-              echo "::error::bump: cannot compare majors of tag '${TAG}' and major-tag" \
-                   "'${MAJOR}'. Both must look like vN.N.N / vN." >&2
-              exit 1
-              ;;
-          esac
-          if [ "$released_major" -gt "$moving_major" ]; then
-            echo "::notice::${TAG} is past ${MAJOR}; leaving ${MAJOR} where it is." \
-                 "Publish v${released_major} and migrate consumers deliberately."
-            echo "- moving tag: left in place (\`${TAG}\` is past \`${MAJOR}\`)" \
-              >>"$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-
-          # PATCH with force moves an existing ref; POST creates it the first time. Try
-          # the move first and fall back, so the step is correct on a repo that has never
-          # published the tag as well as on every release after that.
-          if gh api -X PATCH "/repos/${REPOSITORY}/git/refs/tags/${MAJOR}" \
-               -f "sha=${SHA}" -F force=true >/dev/null 2>&1; then
-            echo "repointed ${MAJOR} at ${SHA}"
-          elif gh api "/repos/${REPOSITORY}/git/refs" \
-                 -f "ref=refs/tags/${MAJOR}" -f "sha=${SHA}" >/dev/null; then
-            echo "created ${MAJOR} at ${SHA}"
-          else
-            echo "::error::bump: could not point ${MAJOR} at ${SHA}." >&2
-            exit 1
-          fi
-          echo "- moving tag: \`${MAJOR}\` -> \`${SHA}\`" >>"$GITHUB_STEP_SUMMARY"
+        uses: ./.forge/actions/move-major-tag
+        with:
+          version: ${{ steps.cog.outputs.tag }}
+          major-tag: ${{ inputs.major-tag }}
+          sha: ${{ steps.signed.outputs.sha }}
+          token: ${{ steps.app-token.outputs.token }}
 
       # Ask for the release explicitly, because the tag push cannot. `--ref` is the
       # branch rather than the tag: the branch always carries the newest workflow file,
@@ -432,6 +387,8 @@ jobs:
           TAG: ${{ steps.cog.outputs.tag }}
           SIGNED: ${{ inputs.signed }}
           SHA: ${{ steps.signed.outputs.sha || steps.unsigned.outputs.sha }}
+          MAJOR: ${{ inputs.major-tag }}
+          MOVED: ${{ steps.major.outputs.move }}
         run: |
           set -euo pipefail
           echo "sha=$SHA" >>"$GITHUB_OUTPUT"
@@ -440,6 +397,11 @@ jobs:
             echo
             echo "- commit: \`${SHA}\`"
             echo "- signed: \`${SIGNED}\`"
+            # Empty when the repoint step did not run (no major-tag, or unsigned).
+            case "$MOVED" in
+              true) echo "- moving tag: \`${MAJOR}\` -> \`${SHA}\`" ;;
+              false) echo "- moving tag: left in place (\`${TAG}\` is past \`${MAJOR}\`)" ;;
+            esac
           } >>"$GITHUB_STEP_SUMMARY"
 
       # A bump that got this far is healthy, including the no-op one where there was

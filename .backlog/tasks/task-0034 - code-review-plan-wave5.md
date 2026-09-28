@@ -1,10 +1,10 @@
 ---
 id: TASK-0034
 title: 'code-review-plan-wave5'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-28 13:43'
-updated_date: '2026-09-28 13:43'
+updated_date: '2026-09-28 13:59'
 labels:
   - code-review-wave
 dependencies:
@@ -44,4 +44,7 @@ Rationale: fallout of Dependabot #16 and tool-bump hygiene. Fix setup-rust-toolc
 
 <!-- SECTION:NOTES:BEGIN -->
 Overlaps: TASK-0035/wave6 (.github/workflows/test-self.yml), TASK-0037/wave8 (README.md). Note: 0027 also adds a new in-repo fixture crate (path chosen by the implementer); 0021 AC#4 requires this wave land before the next release repoints v1.
+
+Branch: code-review/TASK-0034
+
 <!-- SECTION:NOTES:END -->

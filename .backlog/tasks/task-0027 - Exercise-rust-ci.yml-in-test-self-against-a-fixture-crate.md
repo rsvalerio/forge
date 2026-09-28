@@ -1,10 +1,10 @@
 ---
 id: TASK-0027
 title: 'Exercise rust-ci.yml in test-self against a fixture crate'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-28 10:59'
-updated_date: '2026-09-28 13:43'
+updated_date: '2026-09-28 13:58'
 labels:
   - ci
   - test
@@ -31,6 +31,13 @@ dedup_key: 'ops-align:test-self-rust-ci'
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 test-self calls ./.github/workflows/rust-ci.yml against a small in-repo fixture crate on every PR
-- [ ] #2 The fixture includes a deliberate warning-free and a warning case so the warnings policy is asserted
+- [x] #1 test-self calls ./.github/workflows/rust-ci.yml against a small in-repo fixture crate on every PR
+- [x] #2 The fixture includes a deliberate warning-free and a warning case so the warnings policy is asserted
+
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+test-self.yml gains rust-ci-clean and rust-ci-warning, both `uses: ./.github/workflows/rust-ci.yml` on every PR, against self-contained fixture crates in ci/fixtures/rust-ci/{clean,warning} (each its own [workspace] root, publish = false, no deps; run-deny: false). clean runs default clippy-args (-D warnings); warning carries one deliberate unused_variables warning and runs clippy-args "" so every job must pass, which fails if CARGO_BUILD_WARNINGS=deny comes back (verified locally: CARGO_BUILD_WARNINGS=deny cargo check fails on it, plain check passes). The two calls also cover use-sccache true/false.
+<!-- SECTION:NOTES:END -->

@@ -33,24 +33,37 @@ actions/                      # composite actions — step-level, run inside the
   app-bot-identity/           #   resolve ${APP_SLUG}[bot] and configure git
   apt-pool-push/              #   commit .debs to the apt pool in one commit, with retention
   deb-from-dist/              #   repackage cargo-dist linux-gnu tarballs into per-arch .debs
+  move-major-tag/             #   repoint the moving major tag (v1), never across a major
+  setup-ops/                  #   install a pinned, sha256-verified ops release
 .github/workflows/            # reusable workflows — job-level, own runner
   rust-ci.yml                 #   fmt / check / clippy / build / test / deny
   bump.yml                    #   cocogitto version bump, signed commit + tag
   publish-homebrew.yml
   publish-deb.yml             #   build a .deb with the consumer's command, then apt-pool-push
   publish-deb-dist.yml        #   dist custom publish job: deb-from-dist, then apt-pool-push
-  publish-crates.yml          #   built, proven, and deliberately unadopted (PLAN.md §5)
+  publish-crates.yml          #   real publish is a per-crate opt-in (PLAN.md §5)
   test-self.yml               #   forge's own CI
-ci/lint.sh                    # test-self's lint checks, shared with `ops verify`
+ci/lint.sh                    # static checks that `ops verify` runs
+ci/fixtures/rust-ci/           # crates test-self runs rust-ci.yml against
 config/                       # canonical deny.toml / clippy.toml / rustfmt.toml
 templates/                    # SECURITY, CONTRIBUTING, CODE_OF_CONDUCT, issue + PR templates
 docs/
 plans/                        # design docs
 ```
 
-`ops verify` runs test-self's lint job and the local shell tests before you push; the tools
-it needs are pinned in `mise.toml` (`mise install`), which test-self's lint job installs
-from too, so both run the same actionlint and shellcheck.
+`ops verify` is the gate: run it before you push, and test-self's lint job runs the same
+command, so its check list lives only in `.ops.toml`. The tools it needs are pinned in
+`mise.toml` (`mise install`), which test-self's lint job installs from too, so both run the
+same actionlint and shellcheck; CI installs ops itself with `actions/setup-ops`.
+
+Those pins move by hand: Dependabot bumps `jdx/mise-action`'s SHA but reads neither
+`mise.toml`, nor the mise binary version that test-self's lint job passes the action
+(`version:`), nor the ops version on its `setup-ops` step. Bump all of them together, in
+one PR, whenever a Dependabot PR moves `jdx/mise-action` and at least once a month
+otherwise: `mise latest <tool>` for each tool in `mise.toml`, the newest
+[jdx/mise release](https://github.com/jdx/mise/releases) for `version:`, and the newest
+[ops release](https://github.com/rsvalerio/ops/releases) for `setup-ops`. Then `mise install` and `ops verify` before pushing, so a new actionlint
+or shellcheck check lands together with its fixes.
 
 Composite actions and reusable workflows are not interchangeable: an action is a *step*
 inside the caller's job; a reusable workflow is a whole *job* with its own runner.
@@ -89,8 +102,10 @@ jobs:
    action, use the same SHA. Local `./` refs and forge's own refs are exempt (the latter
    follow [docs/versioning.md](docs/versioning.md)). `ci/lint.sh pinned-actions` enforces
    this in test-self and `ops verify`. Dependabot (`.github/dependabot.yml`) proposes
-   bumps weekly, for workflows and every composite action, as one grouped PR that moves
-   the SHA and its version comment together; a hand bump resolves the new tag's commit.
+   bumps weekly, for workflows and every composite action, moving the SHA and its version
+   comment together: minor and patch bumps as one grouped PR, and each major version as
+   its own PR, because a major can change what every consumer runs and needs its own
+   review. A hand bump resolves the new tag's commit.
 
 ## Status
 
@@ -98,12 +113,20 @@ Everything in [plans/PLAN.md](plans/PLAN.md) that lives *inside this repository*
 implemented: the five composite actions, the six reusable workflows, `test-self.yml`,
 the shared configs, the templates and the docs.
 
+`v1` is published (currently at `v0.4.0`), and these repos call forge today:
+
+| Workflow | Callers |
+|---|---|
+| `bump.yml` | `ops@v1`, `dbsec@v1`, `forge-testbed@main` |
+| `rust-ci.yml` | `dbsec@v1`, `forge-testbed@main` (`ops` still runs its own `ci.yml`) |
+| `publish-crates.yml` | `dbsec@v1` (real publish behind a manual opt-in), `forge-testbed@main` |
+| `publish-deb-dist.yml` | `ops@v1` |
+| `publish-deb.yml`, `publish-homebrew.yml` | `forge-testbed@main` only |
+
 Deliberately not done yet:
 
 | | |
 |---|---|
-| `forge-testbed` (phase 2) | Separate repository. Until it exists, the publishing workflows' `dry-run` paths are unexercised end-to-end. |
 | `terraform/github/forge.tf` in `my-cloud` | Repo, ruleset and App credentials are still manual. |
-| Consumer adoption (`ops`, `oxydraw`, `event0`) | No repo calls these workflows yet. |
-| A `v1` tag | Nothing to pin until the testbed proves it. |
+| Consumer adoption (`oxydraw`, `event0`) | Neither calls these workflows yet. |
 | crates.io prerequisites | Explicitly out of scope (PLAN.md §5) — irreversible, so it waits for a deliberate per-crate decision. |
