@@ -69,7 +69,27 @@ jobs:
       run-deny: false
       use-sccache: false
 
-  # The failure paths of setup-ops. The happy path is the lint job above.
+  # publish-crates.yml shares rust-ci's toolchain step (and its `build-warnings` / `cache`
+  # opt-outs), and its only other caller is forge-testbed on its own triggers, so a
+  # toolchain-action or cargo change that breaks `cargo publish --dry-run` would merge
+  # green here. The fixture is publishable (the rust-ci ones set `publish = false`, which
+  # the dry run rejects); dry-run and auth are spelled out rather than left to defaults.
+  # The job grants `id-token: write` only because publish-crates.yml declares it: a called
+  # workflow's permissions can narrow the caller's but never widen them. A dry run never
+  # requests the token.
+  publish-crates-dry-run:
+    name: publish-crates dry run on a fixture crate
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/publish-crates.yml
+    with:
+      working-directory: ci/fixtures/publish-crates
+      dry-run: true
+      auth: none
+
+  # The failure paths of setup-ops. The happy path is the lint job above (Linux X64) and
+  # setup-ops-platforms below (ARM64 Linux, macOS).
   setup-ops:
     name: setup-ops rejects what it cannot verify
     runs-on: ubuntu-latest
@@ -107,6 +127,43 @@ jobs:
             [ ! -e "${RUNNER_TEMP}/${dir}/ops" ] \
               || { echo "::error::setup-ops installed ops despite failing (${dir})"; exit 1; }
           done
+
+  # The lint job only ever installs the x86_64 Linux build. setup-ops also maps ARM64
+  # Linux and macOS to their dist targets, and macOS takes the `shasum -a 256` fallback
+  # where sha256sum is absent, so a consumer there would otherwise be the first to run
+  # those paths. Both runners are ARM64; the assert fails if an image change moves one
+  # off it, rather than quietly testing X64 twice. Keep `version` level with the lint job.
+  setup-ops-platforms:
+    name: setup-ops on ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04-arm, macos-latest]
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install ops
+        id: install
+        uses: ./actions/setup-ops
+        with:
+          version: 0.72.0
+
+      - name: ops is on PATH and reports the pinned version
+        env:
+          OPS_PATH: ${{ steps.install.outputs.path }}
+          OPS_VERSION: ${{ steps.install.outputs.version }}
+        run: |
+          set -euo pipefail
+          echo "${RUNNER_OS}/${RUNNER_ARCH}; sha256sum: $(command -v sha256sum || echo 'absent, shasum fallback')"
+          [ "$RUNNER_ARCH" = ARM64 ] || { echo "::error::expected an ARM64 runner, got ${RUNNER_ARCH}"; exit 1; }
+          [ "$(command -v ops)" = "$OPS_PATH" ] \
+            || { echo "::error::ops on PATH is '$(command -v ops)', setup-ops installed '${OPS_PATH}'"; exit 1; }
+          [ "$OPS_VERSION" = 0.72.0 ] || { echo "::error::version output is '${OPS_VERSION}'"; exit 1; }
+          reported="$(ops --version)"
+          [ "$reported" = "ops 0.72.0" ] || { echo "::error::ops --version reports '${reported}'"; exit 1; }
 
   # Repackages a real, pinned ops release, so the tarball layout and .sha256 format are
   # dist's actual output rather than a fixture's idea of it.
