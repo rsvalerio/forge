@@ -25,7 +25,8 @@ jobs:
 
       # Installs actionlint, shellcheck and yq at the versions mise.toml pins — the same
       # file `ops verify` reads — so CI and the local gate lint with identical tools
-      # instead of whatever the runner image ships. `version` pins mise itself.
+      # instead of whatever the runner image ships. `version` pins mise itself; Dependabot
+      # moves the SHA below but not `version`, so bump it with mise.toml (README "Layout").
       - name: Install pinned tools (mise.toml)
         uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
@@ -52,6 +53,30 @@ jobs:
 
       - name: Third-party actions are SHA-pinned
         run: ci/lint.sh pinned-actions
+
+  # rust-ci.yml is the most-consumed workflow, and a toolchain-action default can change
+  # what it fails on without any edit here (setup-rust-toolchain v2's
+  # CARGO_BUILD_WARNINGS=deny merged green in #16). Two tiny fixture crates under
+  # ci/fixtures/rust-ci pin the warnings policy: a warning-free crate must pass under the
+  # default `clippy-args: -D warnings`, and a crate with one deliberate rustc warning must
+  # pass every job once the caller drops `-D warnings`, because clippy-args is the only
+  # place that policy lives. The two calls also cover both caching modes. cargo-deny is
+  # off: the fixtures have no dependencies to vet.
+  rust-ci-clean:
+    name: rust-ci on a warning-free crate
+    uses: ./.github/workflows/rust-ci.yml
+    with:
+      working-directory: ci/fixtures/rust-ci/clean
+      run-deny: false
+
+  rust-ci-warning:
+    name: rust-ci on a crate with a warning
+    uses: ./.github/workflows/rust-ci.yml
+    with:
+      working-directory: ci/fixtures/rust-ci/warning
+      clippy-args: ""
+      run-deny: false
+      use-sccache: false
 
   # The pool commit is where a mistake costs most: retention deletes published packages,
   # so the pruning rules are tested against a local stand-in for the apt repository.
