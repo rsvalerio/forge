@@ -1,10 +1,10 @@
 ---
 id: TASK-0035
 title: 'code-review-plan-wave6'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-28 13:43'
-updated_date: '2026-09-28 13:43'
+updated_date: '2026-09-28 14:01'
 labels:
   - code-review-wave
 dependencies:
@@ -42,4 +42,7 @@ Rationale: get ops onto runners. Add the pinned, sha256-verified setup-ops compo
 
 <!-- SECTION:NOTES:BEGIN -->
 Overlaps: TASK-0034/wave5 (.github/workflows/test-self.yml), TASK-0037/wave8 (docs/consuming.md).
+
+Branch: code-review/TASK-0035
+
 <!-- SECTION:NOTES:END -->
