@@ -1,6 +1,18 @@
 name: Rust CI
 
-# Shared fmt / check / clippy / build / test / deny gates.
+# Shared fmt / check / clippy / build / test / deny gates, run by one of two engines:
+#
+#   * `engine: cargo` (the default) is the original workflow: six jobs of cargo commands
+#     whose flags come from `cargo-flags`, `clippy-args` and `test-args`. It is frozen:
+#     each job keeps its own setup block, and nothing new is added to it.
+#   * `engine: ops` runs forge's gate contract through ops (docs/consuming.md, "engine:
+#     ops"): `ops verify-check`, `ops next` + `ops test-doc`, `ops deps --check` and
+#     `ops sec`, so CI runs the commands a developer runs, with the flags from the ops
+#     Rust stack plus the caller's `.ops.toml`. Its jobs share one setup,
+#     actions/setup-rust. It is opt-in on v1; the default flips to it at the next major
+#     (docs/versioning.md).
+#
+# `run-msrv` adds an MSRV job under either engine.
 #
 # Consolidated from ops/.github/workflows/ci.yml and oxydraw/.github/workflows/ci.yml,
 # which had drifted by ~58 lines. Two divergences were resolved rather than preserved:
@@ -32,20 +44,38 @@ on:
         type: string
         required: false
         default: ubuntu-latest
+      engine:
+        description: >-
+          `cargo` (the default) or `ops`; see the header. Anything else fails the call.
+        type: string
+        required: false
+        default: cargo
+      forge-ref:
+        description: >-
+          Ref of rsvalerio/forge to load composite actions and tool pins (mise.toml) from.
+          Real consumers leave this at the default; SHA-pinning the `uses:` line pins
+          only this file, so pass the same SHA here too (docs/versioning.md).
+        type: string
+        required: false
+        default: v1
       cargo-flags:
-        description: Flags appended to check/clippy/build/test.
+        description: >-
+          Flags appended to check/clippy/build/test. Deprecated: `engine: cargo` only;
+          under `engine: ops` the flags come from the ops Rust stack and `.ops.toml`.
         type: string
         required: false
         default: --all --all-features
       clippy-args:
-        description: Args passed after `--` to clippy.
+        description: >-
+          Args passed after `--` to clippy. Deprecated: `engine: cargo` only; see
+          `cargo-flags`.
         type: string
         required: false
         default: -D warnings
       test-args:
         description: >-
           Args passed after `--` to the test binaries. ops uses `--ignored` to run its
-          integration tests.
+          integration tests. Deprecated: `engine: cargo` only; see `cargo-flags`.
         type: string
         required: false
         default: ""
@@ -57,7 +87,9 @@ on:
         required: false
         default: "{}"
       run-deny:
-        description: Run `cargo deny check`.
+        description: >-
+          Run `cargo deny check` (`ops deps --check` under `engine: ops`), with the
+          cargo-deny forge's mise.toml pins.
         type: boolean
         required: false
         default: true
@@ -66,6 +98,22 @@ on:
         type: boolean
         required: false
         default: true
+      run-sec:
+        description: >-
+          `engine: ops` only: run `ops sec` (Trivy secret and vulnerability scans), the
+          security leg of the gate contract. Ignored by `engine: cargo`.
+        type: boolean
+        required: false
+        default: true
+      run-msrv:
+        description: >-
+          Check the workspace on its declared minimum Rust version, under either engine:
+          `ops msrv --install` reads `rust-version` from Cargo.toml, fails unless
+          clippy.toml's `msrv` equals it, installs that toolchain and runs
+          `cargo check --workspace --all-features --all-targets` on it.
+        type: boolean
+        required: false
+        default: false
       use-sccache:
         description: >-
           Compile through sccache, cached in the Actions cache. Turn it off on a
@@ -86,10 +134,11 @@ on:
 # the cap holds no matter what the caller passes: a called workflow's
 # permissions can only narrow the caller's, never widen them.
 #
-# `contents: read` is the whole need. The jobs below check out, install a
-# toolchain, and pull release binaries via `taiki-e/install-action`; sccache
-# reaches the Actions cache through ACTIONS_RUNTIME_TOKEN, not GITHUB_TOKEN.
-# Nothing here writes, takes a secret, or loads a composite action.
+# `contents: read` is the whole need. The jobs below check out (the caller, and
+# forge at `forge-ref` for its composite actions), install a toolchain, and pull
+# release binaries through actions/setup-tools; sccache and the mise cache reach
+# the Actions cache through ACTIONS_RUNTIME_TOKEN, not GITHUB_TOKEN. Nothing here
+# writes or takes a secret.
 permissions:
   contents: read
 
@@ -100,6 +149,10 @@ env:
   # the deps job already uses to opt out, and cargo treats an empty value as no
   # wrapper.
   RUSTC_WRAPPER: ${{ inputs.use-sccache && 'sccache' || '' }}
+  # `engine: ops` (and `run-msrv`) build against the committed Cargo.lock: ops adds
+  # `--locked` to every cargo command that resolves it. No effect on `engine: cargo`,
+  # whose jobs run cargo directly.
+  OPS__CARGO__LOCKED: "true"
   # Stated here rather than left to `setup-rust-toolchain`, which exports the same
   # value only when nothing set it first. sccache cannot cache an incremental
   # build, and `target/` caching gains nothing from one either: a CI checkout never
@@ -122,8 +175,25 @@ env:
 # so the `rustflags: ""` these steps carried under v1 is no longer needed.)
 
 jobs:
+  # A call whose `engine` is neither value would otherwise run no gate at all, and pass.
+  # Skipped, so no runner, for both valid values.
+  engine:
+    name: Unknown engine
+    if: inputs.engine != 'cargo' && inputs.engine != 'ops'
+    runs-on: ${{ inputs.runs-on }}
+    steps:
+      - name: Reject the engine
+        env:
+          ENGINE: ${{ inputs.engine }}
+        run: |
+          echo "::error::rust-ci: engine must be 'cargo' or 'ops', got '${ENGINE}'."
+          exit 1
+
+  # --- engine: cargo ---------------------------------------------------------------------
+
   fmt:
     name: Format
+    if: inputs.engine == 'cargo'
     runs-on: ${{ inputs.runs-on }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -145,6 +215,7 @@ jobs:
 
   check:
     name: Check
+    if: inputs.engine == 'cargo'
     runs-on: ${{ inputs.runs-on }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -167,6 +238,7 @@ jobs:
 
   clippy:
     name: Lint
+    if: inputs.engine == 'cargo'
     runs-on: ${{ inputs.runs-on }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -190,6 +262,7 @@ jobs:
 
   build:
     name: Build
+    if: inputs.engine == 'cargo'
     runs-on: ${{ inputs.runs-on }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -212,7 +285,7 @@ jobs:
 
   test:
     name: Test
-    if: inputs.run-tests
+    if: inputs.engine == 'cargo' && inputs.run-tests
     runs-on: ${{ inputs.runs-on }}
     env: ${{ fromJSON(inputs.env-json) }}
     steps:
@@ -245,7 +318,7 @@ jobs:
 
   deps:
     name: Deps
-    if: inputs.run-deny
+    if: inputs.engine == 'cargo' && inputs.run-deny
     runs-on: ${{ inputs.runs-on }}
     env:
       # cargo-deny does no compilation worth caching, and sccache only adds a failure mode.
@@ -259,10 +332,196 @@ jobs:
           toolchain: ${{ inputs.toolchain }}
           build-warnings: ""
           cache: false
-      - name: Install cargo-deny
-        uses: taiki-e/install-action@9983c65e42da123ff25d1f78505eb6de315aa172 # v2.87.20
+      # cargo-deny at the version forge's mise.toml pins, like every tool forge installs.
+      - name: Check out forge
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          tool: cargo-deny
+          repository: rsvalerio/forge
+          ref: ${{ inputs.forge-ref }}
+          path: .forge
+          persist-credentials: false
+      - name: Install cargo-deny
+        uses: ./.forge/actions/setup-tools
+        with:
+          tools: cargo-deny
+      # Out of the way of the gate: a workspace globbing its members would see it.
+      - name: Drop the forge checkout
+        run: rm -rf .forge
       - name: cargo deny check
         working-directory: ${{ inputs.working-directory }}
         run: cargo deny check
+
+  # --- engine: ops -----------------------------------------------------------------------
+  #
+  # Each job: check out, check out forge at `forge-ref` for actions/setup-rust (toolchain,
+  # compile cache, and ops plus the job's tools at forge's mise.toml pins), keep that
+  # checkout out of the gate, then run one leg of the gate contract. Their names start
+  # with `ops` so none collides with an `engine: cargo` job's check name. "Out of the gate" is
+  # a git exclude where a cache action's post step still runs from the checkout — ops's
+  # file checks skip what git ignores — and deleting it where nothing does. What each `ops`
+  # command runs is the ops Rust stack's default unless the caller's `.ops.toml`
+  # overrides it, so a repo tunes its CI there, not through this workflow's inputs.
+
+  # The static gate: fmt-check, the whitespace and end-of-file checks, clippy
+  # (--all-targets, so test code is linted), build, the JSON/YAML parse checks and doc.
+  # `verify-check` is `verify` with every rewriter swapped for its check-only twin.
+  ops-verify:
+    name: ops verify-check
+    if: inputs.engine == 'ops'
+    runs-on: ${{ inputs.runs-on }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check out forge
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: rsvalerio/forge
+          ref: ${{ inputs.forge-ref }}
+          path: .forge
+          persist-credentials: false
+      - uses: ./.forge/actions/setup-rust
+        with:
+          toolchain: ${{ inputs.toolchain }}
+          components: rustfmt, clippy
+          compile-cache: ${{ inputs.use-sccache && 'sccache' || 'rust-cache' }}
+          working-directory: ${{ inputs.working-directory }}
+          tools: ops
+      - name: Keep forge out of the gate
+        run: echo '/.forge/' >>.git/info/exclude
+      - name: Warn about cargo-engine inputs
+        if: >-
+          inputs.cargo-flags != '--all --all-features' || inputs.clippy-args != '-D warnings'
+          || inputs.test-args != ''
+        run: |
+          echo "::warning::rust-ci: cargo-flags, clippy-args and test-args do nothing under" \
+               "engine: ops. Set the flags in .ops.toml instead (docs/consuming.md)."
+      - name: ops verify-check
+        working-directory: ${{ inputs.working-directory }}
+        run: ops verify-check
+
+  # nextest for the tests, `ops test-doc` for the doctests nextest does not run.
+  ops-test:
+    name: ops test
+    if: inputs.engine == 'ops' && inputs.run-tests
+    runs-on: ${{ inputs.runs-on }}
+    env: ${{ fromJSON(inputs.env-json) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check out forge
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: rsvalerio/forge
+          ref: ${{ inputs.forge-ref }}
+          path: .forge
+          persist-credentials: false
+      - uses: ./.forge/actions/setup-rust
+        with:
+          toolchain: ${{ inputs.toolchain }}
+          compile-cache: ${{ inputs.use-sccache && 'sccache' || 'rust-cache' }}
+          working-directory: ${{ inputs.working-directory }}
+          tools: ops, cargo-nextest
+      - name: Keep forge out of the gate
+        run: echo '/.forge/' >>.git/info/exclude
+      - name: ops next
+        working-directory: ${{ inputs.working-directory }}
+        run: ops next
+      - name: ops test-doc
+        working-directory: ${{ inputs.working-directory }}
+        run: ops test-doc
+
+  # cargo-deny (advisories, licenses, bans, sources) and cargo-machete (unused
+  # dependencies, a warning only: it is heuristic). `--check` is the CI-safe mode: no
+  # upgrade survey, so no cargo-edit, and nothing cached between runs.
+  ops-deps:
+    name: ops deps
+    if: inputs.engine == 'ops' && inputs.run-deny
+    runs-on: ${{ inputs.runs-on }}
+    env:
+      RUSTC_WRAPPER: ""
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check out forge
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: rsvalerio/forge
+          ref: ${{ inputs.forge-ref }}
+          path: .forge
+          persist-credentials: false
+      - uses: ./.forge/actions/setup-rust
+        with:
+          toolchain: ${{ inputs.toolchain }}
+          compile-cache: none
+          working-directory: ${{ inputs.working-directory }}
+          tools: ops, cargo-deny, cargo-machete
+      - name: Drop the forge checkout
+        run: rm -rf .forge
+      - name: ops deps --check
+        working-directory: ${{ inputs.working-directory }}
+        run: ops deps --check
+
+  # Trivy's secret scan always, and its vulnerability scan wherever a lockfile is found.
+  ops-sec:
+    name: ops sec
+    if: inputs.engine == 'ops' && inputs.run-sec
+    runs-on: ${{ inputs.runs-on }}
+    env:
+      RUSTC_WRAPPER: ""
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check out forge
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: rsvalerio/forge
+          ref: ${{ inputs.forge-ref }}
+          path: .forge
+          persist-credentials: false
+      - uses: ./.forge/actions/setup-rust
+        with:
+          toolchain: ${{ inputs.toolchain }}
+          compile-cache: none
+          working-directory: ${{ inputs.working-directory }}
+          tools: ops, trivy
+      - name: Drop the forge checkout
+        run: rm -rf .forge
+      - name: ops sec
+        working-directory: ${{ inputs.working-directory }}
+        run: ops sec
+
+  # --- either engine -----------------------------------------------------------------------
+
+  # Every other job builds on `toolchain`, so without this nothing checks the
+  # `rust-version` a crate declares. `ops msrv` owns the logic (ops's own CI runs it
+  # too), so it is not a second copy in shell here.
+  msrv:
+    name: MSRV
+    if: inputs.run-msrv
+    runs-on: ${{ inputs.runs-on }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check out forge
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: rsvalerio/forge
+          ref: ${{ inputs.forge-ref }}
+          path: .forge
+          persist-credentials: false
+      - uses: ./.forge/actions/setup-rust
+        with:
+          toolchain: ${{ inputs.toolchain }}
+          compile-cache: ${{ inputs.use-sccache && 'sccache' || 'rust-cache' }}
+          working-directory: ${{ inputs.working-directory }}
+          tools: ops
+      - name: Keep forge out of the gate
+        run: echo '/.forge/' >>.git/info/exclude
+      - name: ops msrv --install
+        working-directory: ${{ inputs.working-directory }}
+        run: ops msrv --install

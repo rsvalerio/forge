@@ -25,21 +25,14 @@ jobs:
         with:
           persist-credentials: false
 
-      # Installs actionlint, shellcheck and yq at the versions mise.toml pins — the same
-      # file `ops verify` reads — so CI and the local gate lint with identical tools
-      # instead of whatever the runner image ships. `version` pins mise itself; Dependabot
-      # moves the SHA below but not `version`, so bump it with mise.toml (README "Layout").
+      # actionlint, shellcheck, yq and ops at the versions mise.toml pins — the file
+      # `mise install` reads for a local `ops verify` — so CI and the local gate run
+      # identical tools, ops included, instead of whatever the runner image ships. ops
+      # goes through setup-ops (sha256-verified), at mise.toml's `ops` pin.
       - name: Install pinned tools (mise.toml)
-        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        uses: ./actions/setup-tools
         with:
-          version: 2026.9.14
-
-      # The ops that runs forge's gate. This is the one place its version is pinned;
-      # nothing bumps it automatically, so move it with mise.toml (README "Layout").
-      - name: Install ops
-        uses: ./actions/setup-ops
-        with:
-          version: 0.72.0
+          tools: actionlint, shellcheck, yq, ops
 
       # Every check .ops.toml lists under [commands.verify]; see there for what each does.
       - name: ops verify
@@ -51,14 +44,15 @@ jobs:
   # ci/fixtures/rust-ci pin the warnings policy: a warning-free crate must pass under the
   # default `clippy-args: -D warnings`, and a crate with one deliberate rustc warning must
   # pass every job once the caller drops `-D warnings`, because clippy-args is the only
-  # place that policy lives. The two calls also cover both caching modes. cargo-deny is
-  # off: the fixtures have no dependencies to vet.
+  # place that policy lives. The two calls also cover both caching modes. The clean call
+  # also runs the deps job, whose cargo-deny comes from actions/setup-tools; `forge-ref`
+  # is this run's commit, so the actions and mise.toml under test are this tree's.
   rust-ci-clean:
     name: rust-ci on a warning-free crate
     uses: ./.github/workflows/rust-ci.yml
     with:
       working-directory: ci/fixtures/rust-ci/clean
-      run-deny: false
+      forge-ref: ${{ github.sha }}
 
   rust-ci-warning:
     name: rust-ci on a crate with a warning
@@ -88,15 +82,53 @@ jobs:
       dry-run: true
       auth: none
 
-  # The failure paths of setup-ops. The happy path is the lint job above (Linux X64) and
-  # setup-ops-platforms below (ARM64 Linux, macOS).
+  # `engine: ops` against a crate that passes every gate it runs: verify-check, next and
+  # test-doc, deps --check, sec, and the MSRV job (the fixture declares rust-version and a
+  # matching clippy.toml msrv). Its jobs cover actions/setup-rust's `sccache` and `none`
+  # compile-cache modes.
+  rust-ci-ops:
+    name: rust-ci engine ops
+    uses: ./.github/workflows/rust-ci.yml
+    with:
+      engine: ops
+      working-directory: ci/fixtures/rust-ci/ops
+      forge-ref: ${{ github.sha }}
+      run-msrv: true
+
+  # setup-ops as an action: mise.toml's ops pin installs through action.yml (the lint job
+  # reaches setup-ops.sh through setup-tools instead; setup-ops-platforms below covers
+  # ARM64 Linux and macOS), and the failure paths.
   setup-ops:
-    name: setup-ops rejects what it cannot verify
+    name: setup-ops installs the pin, rejects what it cannot verify
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      - name: Read the ops pin from mise.toml
+        id: pin
+        run: |
+          set -euo pipefail
+          version="$(sed -n '/^\[tools\]/,/^\[/ s/^ops = "\([^"]*\)".*/\1/p' mise.toml)"
+          [ -n "$version" ] || { echo "::error::mise.toml has no ops pin"; exit 1; }
+          echo "version=$version" >>"$GITHUB_OUTPUT"
+
+      - name: The pinned version installs
+        id: pinned
+        uses: ./actions/setup-ops
+        with:
+          version: ${{ steps.pin.outputs.version }}
+          install-dir: ${{ runner.temp }}/pinned
+
+      - name: Assert it is on PATH at that version
+        env:
+          VERSION: ${{ steps.pin.outputs.version }}
+          OPS_PATH: ${{ steps.pinned.outputs.path }}
+        run: |
+          set -euo pipefail
+          [ "$(command -v ops)" = "$OPS_PATH" ] || { echo "::error::ops on PATH is not $OPS_PATH"; exit 1; }
+          [ "$(ops --version)" = "ops $VERSION" ] || { echo "::error::ops is not $VERSION"; exit 1; }
 
       - name: An unknown version is rejected
         id: unknown
@@ -132,7 +164,8 @@ jobs:
   # Linux and macOS to their dist targets, and macOS takes the `shasum -a 256` fallback
   # where sha256sum is absent, so a consumer there would otherwise be the first to run
   # those paths. Both runners are ARM64; the assert fails if an image change moves one
-  # off it, rather than quietly testing X64 twice. Keep `version` level with the lint job.
+  # off it, rather than quietly testing X64 twice. The version is mise.toml's ops pin,
+  # the one the lint job installs.
   setup-ops-platforms:
     name: setup-ops on ${{ matrix.runner }}
     strategy:
@@ -145,14 +178,24 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Read the ops pin from mise.toml
+        id: pin
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(sed -n '/^\[tools\]/,/^\[/ s/^ops = "\([^"]*\)".*/\1/p' mise.toml)"
+          [ -n "$version" ] || { echo "::error::mise.toml has no ops pin"; exit 1; }
+          echo "version=$version" >>"$GITHUB_OUTPUT"
+
       - name: Install ops
         id: install
         uses: ./actions/setup-ops
         with:
-          version: 0.72.0
+          version: ${{ steps.pin.outputs.version }}
 
       - name: ops is on PATH and reports the pinned version
         env:
+          PIN: ${{ steps.pin.outputs.version }}
           OPS_PATH: ${{ steps.install.outputs.path }}
           OPS_VERSION: ${{ steps.install.outputs.version }}
         run: |
@@ -161,9 +204,9 @@ jobs:
           [ "$RUNNER_ARCH" = ARM64 ] || { echo "::error::expected an ARM64 runner, got ${RUNNER_ARCH}"; exit 1; }
           [ "$(command -v ops)" = "$OPS_PATH" ] \
             || { echo "::error::ops on PATH is '$(command -v ops)', setup-ops installed '${OPS_PATH}'"; exit 1; }
-          [ "$OPS_VERSION" = 0.72.0 ] || { echo "::error::version output is '${OPS_VERSION}'"; exit 1; }
+          [ "$OPS_VERSION" = "$PIN" ] || { echo "::error::version output is '${OPS_VERSION}'"; exit 1; }
           reported="$(ops --version)"
-          [ "$reported" = "ops 0.72.0" ] || { echo "::error::ops --version reports '${reported}'"; exit 1; }
+          [ "$reported" = "ops ${PIN}" ] || { echo "::error::ops --version reports '${reported}'"; exit 1; }
 
   # Repackages a real, pinned ops release, so the tarball layout and .sha256 format are
   # dist's actual output rather than a fixture's idea of it.

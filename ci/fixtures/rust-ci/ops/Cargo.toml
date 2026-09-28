@@ -1,0 +1,13 @@
+# test-self fixture for rust-ci.yml's `engine: ops`: a crate that passes every ops gate
+# rust-ci runs — verify-check, next, test-doc, deps --check, sec and msrv. Not published,
+# not part of any other workspace.
+[package]
+name = "forge-fixture-ops"
+version = "0.0.0"
+edition = "2021"
+# `ops msrv` builds on this exact toolchain and fails unless clippy.toml's `msrv` agrees.
+rust-version = "1.85"
+publish = false
+
+# Its own workspace root, so cargo never looks further up the tree for one.
+[workspace]
