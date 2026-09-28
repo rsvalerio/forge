@@ -25,11 +25,12 @@ jobs:
     uses: rsvalerio/forge/.github/workflows/rust-ci.yml@v1
 ```
 
-Per-repo variants:
+Per-repo variants. `dbsec` calls `rust-ci.yml` today; `ops` still runs its own `ci.yml`,
+so its row is the wrapper it would need, not one it has:
 
 | Repo | Wrapper inputs |
 |---|---|
-| `ops` | `test-args: --ignored`, `env-json: '{"OPS_LOG_LEVEL":"debug"}'` |
+| `ops` (not adopted) | `test-args: --ignored`, `env-json: '{"OPS_LOG_LEVEL":"debug"}'` |
 | `oxydraw` | `working-directory: backend` (its Cargo workspace is not at the root) |
 | `event0` | defaults; expect a backlog of failures on the first run |
 | `dbsec` | `runs-on: blacksmith-4vcpu-ubuntu-2404`, `use-sccache: false`, `run-tests: false` |
@@ -585,8 +586,9 @@ metadata inputs (`description`, `maintainer`, `section`, `depends`, `homepage`,
 
 ## publish-crates
 
-**No real consumer today, deliberately** (PLAN.md §5). The workflow exists so the
-capability is proven, but crates.io publication is irreversible — a yanked version stays
+**One consumer, `dbsec`, and only behind a manual opt-in** (PLAN.md §5): its wrapper runs
+`dry-run` unless a `real` dispatch input is set. The opt-in is deliberate, because
+crates.io publication is irreversible — a yanked version stays
 visible forever and the crate name is claimed permanently — so activating it is a separate,
 per-crate decision.
 

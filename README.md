@@ -39,7 +39,7 @@ actions/                      # composite actions — step-level, run inside the
   publish-homebrew.yml
   publish-deb.yml             #   build a .deb with the consumer's command, then apt-pool-push
   publish-deb-dist.yml        #   dist custom publish job: deb-from-dist, then apt-pool-push
-  publish-crates.yml          #   built, proven, and deliberately unadopted (PLAN.md §5)
+  publish-crates.yml          #   real publish is a per-crate opt-in (PLAN.md §5)
   test-self.yml               #   forge's own CI
 ci/lint.sh                    # test-self's lint checks, shared with `ops verify`
 config/                       # canonical deny.toml / clippy.toml / rustfmt.toml
@@ -98,12 +98,20 @@ Everything in [plans/PLAN.md](plans/PLAN.md) that lives *inside this repository*
 implemented: the five composite actions, the six reusable workflows, `test-self.yml`,
 the shared configs, the templates and the docs.
 
+`v1` is published (currently at `v0.4.0`), and these repos call forge today:
+
+| Workflow | Callers |
+|---|---|
+| `bump.yml` | `ops@v1`, `dbsec@v1`, `forge-testbed@main` |
+| `rust-ci.yml` | `dbsec@v1`, `forge-testbed@main` (`ops` still runs its own `ci.yml`) |
+| `publish-crates.yml` | `dbsec@v1` (real publish behind a manual opt-in), `forge-testbed@main` |
+| `publish-deb-dist.yml` | `ops@v1` |
+| `publish-deb.yml`, `publish-homebrew.yml` | `forge-testbed@main` only |
+
 Deliberately not done yet:
 
 | | |
 |---|---|
-| `forge-testbed` (phase 2) | Separate repository. Until it exists, the publishing workflows' `dry-run` paths are unexercised end-to-end. |
 | `terraform/github/forge.tf` in `my-cloud` | Repo, ruleset and App credentials are still manual. |
-| Consumer adoption (`ops`, `oxydraw`, `event0`) | No repo calls these workflows yet. |
-| A `v1` tag | Nothing to pin until the testbed proves it. |
+| Consumer adoption (`oxydraw`, `event0`) | Neither calls these workflows yet. |
 | crates.io prerequisites | Explicitly out of scope (PLAN.md §5) — irreversible, so it waits for a deliberate per-crate decision. |
