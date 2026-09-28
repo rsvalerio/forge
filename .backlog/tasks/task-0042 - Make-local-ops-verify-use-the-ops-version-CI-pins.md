@@ -1,13 +1,15 @@
 ---
 id: TASK-0042
 title: 'Make local ops verify use the ops version CI pins'
-status: Triage
+status: Done
 assignee: []
 created_date: '2026-09-28 14:01'
+updated_date: '2026-09-28 17:25'
 labels:
   - code-review-rust
   - ci
 dependencies: []
+parent_task_id: 'TASK-0044'
 modified_files:
   - .github/workflows/test-self.yml
   - mise.toml
@@ -29,5 +31,12 @@ ordinal: 1000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Either the local ops version is pinned from the same source CI reads (e.g. a mise github backend entry that setup-ops also reads), or ops verify warns when the running ops differs from CI's pin
+- [x] #1 Either the local ops version is pinned from the same source CI reads (e.g. a mise github backend entry that setup-ops also reads), or ops verify warns when the running ops differs from CI's pin
+
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+ops = "0.75.0" pinned in mise.toml ([tool_alias] ops = github:rsvalerio/ops): `mise install` gets it locally (verified), and test-self installs it via setup-tools, which reads the same pin and installs through setup-ops.sh (sha256-verified). CI ops moved 0.72.0 -> 0.75.0 to match local. The setup-ops job asserts action.yml installs the mise.toml pin.
+<!-- SECTION:NOTES:END -->

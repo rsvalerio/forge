@@ -1,14 +1,16 @@
 ---
 id: TASK-0030
 title: 'Use one pinned tool-install method across forge workflows'
-status: Triage
+status: Done
 assignee: []
 created_date: '2026-09-28 10:59'
+updated_date: '2026-09-28 17:25'
 labels:
   - ci
   - ops-alignment
 dependencies:
   - TASK-0025
+parent_task_id: 'TASK-0044'
 modified_files:
   - .github/workflows/rust-ci.yml
   - .github/workflows/bump.yml
@@ -29,6 +31,13 @@ dedup_key: 'ops-align:tool-install'
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Every tool a forge workflow installs has a pinned version from one declared source
-- [ ] #2 bump.yml's PATH-check wrapper is replaced by that method
+- [x] #1 Every tool a forge workflow installs has a pinned version from one declared source
+- [x] #2 bump.yml's PATH-check wrapper is replaced by that method
+
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Owner decision 2026-09-28: mise.toml is the one declared source. actions/setup-tools installs any tool at mise.toml pins (ops via setup-ops.sh, rest via SHA-pinned jdx/mise-action, isolated from the caller/global mise config). rust-ci cargo-deny (both engines), engine: ops tools (nextest, machete, trivy), bump.yml install-tools (wrapper and taiki-e removed), and test-self lint all go through it; taiki-e/install-action is gone from forge. Consumer-side use of the consumer mise.toml is covered by TASK-0050.
+<!-- SECTION:NOTES:END -->

@@ -60,6 +60,65 @@ call — it is Bun/SPA-specific with one consumer.
 - **`event0` has never had CI.** Its first run will surface pre-existing lint and test
   failures. That is a backlog, not a migration bug. Adopt it last.
 
+### `engine: ops`
+
+`engine: ops` runs the gate contract through [ops](https://github.com/rsvalerio/ops)
+instead of cargo commands, so CI runs what a developer runs locally:
+
+```yaml
+jobs:
+  rust:
+    uses: rsvalerio/forge/.github/workflows/rust-ci.yml@v1
+    with:
+      engine: ops
+```
+
+| Job | Runs | Input that turns it off |
+|---|---|---|
+| `ops verify-check` | fmt-check, whitespace and end-of-file checks, clippy, build, JSON/YAML parse checks, doc | — |
+| `ops test` | `ops next` (nextest), then `ops test-doc` (doctests, which nextest skips) | `run-tests: false` |
+| `ops deps` | `ops deps --check`: cargo-deny, and cargo-machete's unused-dependency warning | `run-deny: false` |
+| `ops sec` | Trivy secret and vulnerability scans | `run-sec: false` |
+
+The job names differ from `engine: cargo`'s (`Format`, `Lint`, `Test`, ...), so a branch
+ruleset that requires those checks needs its list updated when you switch.
+
+Each `ops` command is the ops Rust stack's default unless your `.ops.toml` overrides it,
+so tune CI there — for example `[extend.clippy] args = [...]`, or a `next` of your own —
+not through this workflow. `cargo-flags`, `clippy-args` and `test-args` are deprecated:
+they do nothing under `engine: ops`, and the `ops verify-check` job warns when one is
+set.
+`working-directory`, `toolchain`, `runs-on`, `use-sccache` and `env-json` (for
+`ops test`) work as before.
+
+It is **opt-in on v1**; the default stays `cargo` until the next major, where it flips
+(see [versioning.md](versioning.md#rust-ci-engine-ops)). Expect these differences from
+`engine: cargo` on the first run:
+
+- **`--all-targets`**: clippy and build also cover tests, benches and examples, so lints
+  in test code now fail the gate.
+- **`--locked`**: every cargo command builds against the committed `Cargo.lock`
+  (`OPS__CARGO__LOCKED=true`). A repo without one, or with a stale one, fails.
+- **nextest** instead of `cargo test`, plus a separate doctest step. nextest fails a
+  workspace with no tests at all; override `next` in `.ops.toml` if that is you.
+- **New gates**: whitespace and end-of-file checks, the JSON/YAML parse checks, `cargo
+  doc` (broken intra-doc links fail when the workspace denies them), and `ops sec`.
+- **No `check` job**: `build --all-targets` covers it.
+
+The jobs load `actions/setup-rust` from forge at `forge-ref` (default `v1`), which installs
+the toolchain, the compile cache, and ops plus each job's tools at the versions forge's
+`mise.toml` pins — so the ops version CI uses moves with the forge ref you call, not with
+your repo. Your own `mise.toml`, if any, is not read.
+
+### MSRV
+
+`run-msrv: true` (either engine) adds an **MSRV** job running `ops msrv --install`: it
+reads `rust-version` from `Cargo.toml` (`[workspace.package]`, else `[package]`), fails
+unless `clippy.toml`'s `msrv` equals it, installs exactly that toolchain and runs
+`cargo check --workspace --all-features --all-targets` on it. It catches what clippy's
+`incompatible_msrv` cannot, such as language features newer than the floor. Off by
+default, because a repo without both keys would fail it.
+
 ---
 
 ## bump
@@ -648,25 +707,53 @@ verified way to get it onto a runner.
   rate limits. `install-dir` defaults to a directory under `RUNNER_TEMP`.
 - Outputs: `path` (the installed binary) and `version`.
 
-forge's own test-self lint job pins its ops version on its `setup-ops` step.
+forge's own workflows do not call setup-ops with a version of their own: they install ops
+through `setup-tools` (below), at the `ops` pin in forge's `mise.toml`.
+
+---
+
+## setup-tools
+
+The one way forge's workflows install tools. It installs each named tool at the version
+forge's `mise.toml` pins and puts it on `PATH` — ops through `setup-ops`, everything else
+through mise — so a workflow at a given forge ref always installs that ref's versions, and
+`mise install` in a forge checkout gets the same ones locally.
+
+```yaml
+      - uses: ./.forge/actions/setup-tools   # from a forge checkout, as the workflows do
+        with:
+          tools: ops, cargo-deny
+```
+
+- **`tools`** is a comma- or whitespace-separated list of keys in forge's `mise.toml`
+  `[tools]`. A name it does not pin fails the step; pass `name@version` (a mise tool name)
+  for a tool forge does not pin.
+- **Only forge's `mise.toml` is read.** Neither the caller's own mise configuration nor a
+  runner's global one reaches the install, and the `MISE_*` settings it uses are scoped to
+  its own steps. The job keeps the tools' `PATH` entries, and mise itself.
+- Installs are cached per tool set. `cargo-edit` has no release binaries, so its first
+  install compiles it.
+- `bump.yml`'s `install-tools` goes through it, as do rust-ci's cargo-deny and every
+  `engine: ops` job.
+
+## setup-rust
+
+The setup every rust-ci `engine: ops` job shares: `setup-rust-toolchain` (with
+`build-warnings: ""` and its own cache off), a compile cache (`compile-cache: sccache`,
+`rust-cache` or `none`), and `setup-tools` for `tools` (default `ops`). It calls
+`setup-tools` from `./.forge`, so load it from a forge checkout at `.forge`.
 
 ---
 
 ## Shared configuration
 
-`config/deny.toml`, `config/clippy.toml` and `config/rustfmt.toml` are a **baseline to
-extend, not a drop-in replacement**. Vendor them into the consumer and keep repo-specific
-additions local:
+The shared Rust config — `clippy.toml`, `deny.toml`, `rustfmt.toml`,
+`.config/nextest.toml` and the `[workspace.lints]` policy — comes from **ops, not forge**.
+Scaffold it with `ops init --rust` and keep it current with `ops init --rust --check`
+(ops 0.74.0 or later); see [docs/foundation.md](foundation.md) for the gate contract, how
+to adopt the foundation and how updates arrive.
 
-- `deny.toml` carries no `advisories.ignore` entries. Every existing ignore was justified
-  against one repo's dependency tree, and a shared ignore list silently widens everyone
-  else's exposure. Keep those in the consuming repo.
-- `clippy.toml` carries no `msrv`. It differs per repo (ops 1.80, oxydraw 1.85, event0
-  1.92) and belongs next to the `rust-version` it must match.
-- `rustfmt.toml` carries no `edition`. `cargo fmt` takes it from each crate's Cargo.toml;
-  hardcoding it would format a 2024-edition crate under 2021 rules.
-
-**Rename on adoption.** ops uses `clippy.toml`, event0 uses `.clippy.toml` and
-`.rustfmt.toml`. The non-dotted spelling is what Cargo documents and what forge
-standardises on. Do not keep both — each tool reads only one, and two files are exactly how
-the spellings silently disagree.
+`config/deny.toml`, `config/clippy.toml` and `config/rustfmt.toml` in this repo are
+mirrors of the ops templates, kept only for repos that still vendor them (dbsec's
+`forge-sync`). Do not start vendoring them in a new repo, and change the templates in ops
+rather than here.

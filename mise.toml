@@ -1,11 +1,37 @@
-# Tools `ops verify` needs, at the versions it is known green with. mise resolves them
-# per project, so the shellcheck that actionlint shells out to is found here even on a
-# machine with no global shellcheck default. `mise install` fetches them. test-self.yml's
-# lint job installs from this file too (jdx/mise-action), so it is the only place these
-# versions are pinned: bump them here and CI follows. Nothing bumps them automatically;
-# README.md ("Layout") gives the cadence, shared with test-self's mise `version:` and
-# its setup-ops ops `version:` (ops itself is not a mise tool).
+# The one list of tool versions forge's workflows install, and of the tools forge's
+# gates (`ops verify`, `ops qa`) need locally. Every workflow installs through
+# actions/setup-tools, which reads this file: test-self.yml from its own checkout,
+# rust-ci.yml and bump.yml from the forge checkout at `forge-ref`. So a version is
+# bumped here and CI follows. Locally, `mise install` fetches the same versions; mise
+# resolves them per project, so the shellcheck that actionlint shells out to is found
+# here even on a machine with no global shellcheck default, and the gates run on the ops
+# CI runs.
+#
+# Nothing bumps these automatically; README.md ("Layout") gives the cadence, shared with
+# the mise version actions/setup-tools pins on its jdx/mise-action step.
+
+# Names forge's workflows use for tools mise's registry does not know, or knows by
+# another name. setup-tools installs `ops` through actions/setup-ops (sha256-verified)
+# at the version below; mise installs everything else.
+[tool_alias]
+ops = "github:rsvalerio/ops"
+cargo-nextest = "github:nextest-rs/nextest"
+cargo-machete = "github:bnjbvr/cargo-machete"
+cargo-edit = "cargo:cargo-edit"
+
 [tools]
+# forge's own gates (`ops verify`, `ops qa`; test-self runs each as a check).
 actionlint = "1.7.12"
 shellcheck = "0.11.0"
 yq = "4.53.6"
+ops = "0.75.0"
+
+# rust-ci.yml (cargo-deny in both engines; cargo-machete, cargo-nextest and trivy for
+# `engine: ops`) and bump.yml's `install-tools` default. cargo-edit publishes no
+# binaries, so mise compiles it; setup-tools' cache keeps that to once per tool set.
+cargo-deny = "0.20.2"
+cargo-machete = "0.9.2"
+cargo-nextest = { version = "0.9.146", version_prefix = "cargo-nextest-" }
+trivy = "0.70.0"
+cocogitto = "7.0.0"
+cargo-edit = "0.13.13"

@@ -35,8 +35,10 @@ actions/                      # composite actions — step-level, run inside the
   deb-from-dist/              #   repackage cargo-dist linux-gnu tarballs into per-arch .debs
   move-major-tag/             #   repoint the moving major tag (v1), never across a major
   setup-ops/                  #   install a pinned, sha256-verified ops release
+  setup-tools/                #   install tools at mise.toml's pins: the one install method
+  setup-rust/                 #   toolchain + compile cache + tools, shared by rust-ci's ops jobs
 .github/workflows/            # reusable workflows — job-level, own runner
-  rust-ci.yml                 #   fmt / check / clippy / build / test / deny
+  rust-ci.yml                 #   Rust gates: cargo jobs, or ops gates with `engine: ops`
   bump.yml                    #   cocogitto version bump, signed commit + tag
   publish-homebrew.yml
   publish-deb.yml             #   build a .deb with the consumer's command, then apt-pool-push
@@ -44,26 +46,32 @@ actions/                      # composite actions — step-level, run inside the
   publish-crates.yml          #   real publish is a per-crate opt-in (PLAN.md §5)
   test-self.yml               #   forge's own CI
 ci/lint.sh                    # static checks that `ops verify` runs
-ci/fixtures/rust-ci/           # crates test-self runs rust-ci.yml against
-config/                       # canonical deny.toml / clippy.toml / rustfmt.toml
+ci/fixtures/rust-ci/          # crates test-self runs rust-ci.yml against
+config/                       # mirrors of ops's deny.toml / clippy.toml / rustfmt.toml templates
 templates/                    # SECURITY, CONTRIBUTING, CODE_OF_CONDUCT, issue + PR templates
-docs/
+docs/                         # foundation.md: the gate contract and shared Rust config (from ops)
+mise.toml                     # every tool version: forge's workflows, and the local gates
 plans/                        # design docs
 ```
 
-`ops verify` is the gate: run it before you push, and test-self's lint job runs the same
-command, so its check list lives only in `.ops.toml`. The tools it needs are pinned in
-`mise.toml` (`mise install`), which test-self's lint job installs from too, so both run the
-same actionlint and shellcheck; CI installs ops itself with `actions/setup-ops`.
+forge has the two gates of the [foundation
+contract](docs/foundation.md#the-gate-contract): `ops verify` (every lint) and `ops qa`
+(the local shell tests). Run both before you push; test-self runs each as its own check
+under the same name, so their check lists live only in `.ops.toml`. The tools they need,
+ops included, are pinned in `mise.toml` (`mise install`), and so is every other tool a
+forge workflow installs: `actions/setup-tools` is the one way they install anything, and
+it reads only that file (ops through `actions/setup-ops`, at the `ops` pin). So test-self
+lints with the same actionlint, shellcheck and ops you run locally, and `rust-ci` and
+`bump` run the cargo-deny, cocogitto and cargo-edit of the forge ref they are called at.
 
 Those pins move by hand: Dependabot bumps `jdx/mise-action`'s SHA but reads neither
-`mise.toml`, nor the mise binary version that test-self's lint job passes the action
-(`version:`), nor the ops version on its `setup-ops` step. Bump all of them together, in
-one PR, whenever a Dependabot PR moves `jdx/mise-action` and at least once a month
-otherwise: `mise latest <tool>` for each tool in `mise.toml`, the newest
-[jdx/mise release](https://github.com/jdx/mise/releases) for `version:`, and the newest
-[ops release](https://github.com/rsvalerio/ops/releases) for `setup-ops`. Then `mise install` and `ops verify` before pushing, so a new actionlint
-or shellcheck check lands together with its fixes.
+`mise.toml` nor the mise binary version `actions/setup-tools` passes the action
+(`version:`). Bump them together, in one PR, whenever a Dependabot PR moves
+`jdx/mise-action` and at least once a month otherwise: `mise latest <tool>` for each tool
+in `mise.toml` (the newest [ops release](https://github.com/rsvalerio/ops/releases) for
+`ops`), and the newest [jdx/mise release](https://github.com/jdx/mise/releases) for
+`version:`. Then `mise install`, `ops verify` and `ops qa` before pushing, so a new actionlint or
+shellcheck check lands together with its fixes.
 
 Composite actions and reusable workflows are not interchangeable: an action is a *step*
 inside the caller's job; a reusable workflow is a whole *job* with its own runner.
@@ -98,19 +106,22 @@ jobs:
 6. **Third-party actions are pinned to a full commit SHA, with the version in a comment**
    (`uses: actions/checkout@<40-hex sha> # v6.1.0`). These workflows hold the App private
    key and publish releases, and every consumer inherits them, so a moved tag would run
-   unreviewed code with those credentials everywhere at once. Where ops pins the same
-   action, use the same SHA. Local `./` refs and forge's own refs are exempt (the latter
-   follow [docs/versioning.md](docs/versioning.md)). `ci/lint.sh pinned-actions` enforces
-   this in test-self and `ops verify`. Dependabot (`.github/dependabot.yml`) proposes
-   bumps weekly, for workflows and every composite action, moving the SHA and its version
-   comment together: minor and patch bumps as one grouped PR, and each major version as
-   its own PR, because a major can change what every consumer runs and needs its own
-   review. A hand bump resolves the new tag's commit.
+   unreviewed code with those credentials everywhere at once. Local `./` refs and forge's
+   own refs are exempt (the latter follow [docs/versioning.md](docs/versioning.md)).
+   `ci/lint.sh pinned-actions` enforces this in test-self and `ops verify`. Dependabot
+   (`.github/dependabot.yml`) proposes bumps weekly, for workflows and every composite
+   action, moving the SHA and its version comment together: minor and patch bumps as one
+   grouped PR, and each major version as its own PR, because a major can change what every
+   consumer runs and needs its own review. A hand bump resolves the new tag's commit.
+   forge's pins do not have to match ops's SHA for the same action. Each repo's Dependabot
+   moves its own pins on its own schedule, so a rule to match would be broken by every bump
+   in either repo and enforced by nothing. Once ops's CI runs on forge's workflows, most of
+   the pins ops relies on are forge's anyway.
 
 ## Status
 
 Everything in [plans/PLAN.md](plans/PLAN.md) that lives *inside this repository* is
-implemented: the five composite actions, the six reusable workflows, `test-self.yml`,
+implemented: the composite actions, the six reusable workflows, `test-self.yml`,
 the shared configs, the templates and the docs.
 
 `v1` is published (currently at `v0.4.0`), and these repos call forge today:

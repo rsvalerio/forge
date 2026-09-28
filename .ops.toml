@@ -5,11 +5,13 @@ zero_padded_ids = 4
 task_prefix = "TASK"
 backlog_directory = ".backlog"
 
-# `ops verify` is forge's gate, and this file is the only list of its checks: developers,
-# wave runners and test-self.yml's lint job all run `ops verify` itself, so a check added
-# here runs everywhere and one added anywhere else runs nowhere. Everything in it works
-# without network or credentials. Tools come from mise.toml; CI's ops version is pinned
-# on test-self.yml's setup-ops step.
+# forge's two gates follow the contract in docs/foundation.md: `ops verify` is the fast
+# static gate (every lint), `ops qa` the full one (the local shell tests). This file is
+# the only list of their checks: developers and wave runners run the gates themselves, and
+# test-self.yml runs each as its own check (`ops verify`, `ops qa`), so a check added here
+# runs everywhere and one added anywhere else runs nowhere. Everything in them works
+# without network or credentials. Tools come from mise.toml, ops included: `mise install`
+# locally, actions/setup-tools in test-self, both at the same pins.
 
 # actionlint reports on stdout; ops shows only a failing step's stderr.
 [commands.actionlint]
@@ -62,6 +64,13 @@ program = "actions/apt-pool-push/pool-update.test.sh"
 help = "apt-pool-push pool logic against a local stand-in repository"
 category = "Code Quality"
 
+# The major guard is what stops a v2 release carrying `v1` across a major; a regression
+# would otherwise only show on a real release. Check-only mode needs no network or token.
+[commands.test-move-major-tag]
+program = "actions/move-major-tag/move-major-tag.test.sh"
+help = "move-major-tag's major guard: below, equal, above and non-numeric majors"
+category = "Code Quality"
+
 [commands.verify]
 commands = [
   "actionlint",
@@ -71,8 +80,16 @@ commands = [
   "lint-config-toml",
   "lint-pinned-actions",
   "lint-yaml",
-  "test-pool-update",
 ]
 fail_fast = false
-help = "forge's gate: every lint and local shell test (test-self's lint job runs this)"
+help = "forge's static gate: every lint (test-self's `ops verify` check runs this)"
+category = "Code Quality"
+
+[commands.qa]
+commands = [
+  "test-pool-update",
+  "test-move-major-tag",
+]
+fail_fast = false
+help = "forge's full gate: every local shell test (test-self's `ops qa` check runs this)"
 category = "Code Quality"

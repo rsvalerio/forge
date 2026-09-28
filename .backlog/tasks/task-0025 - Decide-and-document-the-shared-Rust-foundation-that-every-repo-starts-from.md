@@ -1,14 +1,15 @@
 ---
 id: TASK-0025
 title: 'Decide and document the shared Rust foundation that every repo starts from'
-status: Triage
+status: Done
 assignee: []
 created_date: '2026-09-28 10:59'
-updated_date: '2026-09-28 13:52'
+updated_date: '2026-09-28 17:06'
 labels:
   - ops-alignment
   - decision
 dependencies: []
+parent_task_id: 'TASK-0043'
 modified_files:
   - docs/foundation.md
   - config
@@ -32,8 +33,9 @@ dedup_key: 'ops-align:foundation'
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 docs/foundation.md records the gate contract, where each default lives and how a repo adopts and updates it
-- [ ] #2 Follow-up tasks are filed in ops/ai/consumer backlogs for every change the decision requires
+- [x] #1 docs/foundation.md records the gate contract, where each default lives and how a repo adopts and updates it
+- [x] #2 Follow-up tasks are filed in ops/ai/consumer backlogs for every change the decision requires
+
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -42,5 +44,7 @@ dedup_key: 'ops-align:foundation'
 Decisions by the owner, 2026-09-28: (1) Defaults live in ops built-ins: the Rust stack defaults in ops carry the foundation (gate commands, --locked, check-only fmt); a repo's .ops.toml holds only its exceptions; updates ship with ops releases, no vendored copies to sync. (2) Gate contract: every Rust repo exposes 'verify' (fast static gate: fmt, clippy, build, doc; used by the pre-commit hook and wave runners) and 'qa' (full gate: tests, deps, security); CI runs both, in check-only mode. Still open: where shared config files (clippy.toml, deny.toml, nextest.toml, [workspace.lints]) live.
 
 Decision by the owner, 2026-09-28: shared config files (clippy.toml, deny.toml, rustfmt.toml, .config/nextest.toml, [workspace.lints]) come from ops: ops embeds the templates, scaffolds them into a repo, and reports drift (ops TASK-2330). forge config/ and the ai skill templates will reference ops. With this, every decision the task asks for is made; remaining work is writing docs/foundation.md.
+
+TASK-0043: wrote docs/foundation.md (where defaults live, gate contract verify/qa with CI running verify-check + qa under OPS__CARGO__LOCKED, shared config via ops init --rust / --check, adopt and update steps, transition table). AC#2 substitution: ops and ai follow-ups already exist (ops TASK-2322/2323/2324/2327/2329/2330/2339, ai TASK-0006/0007/0008). The consumer follow-ups could not be filed in dbsec/event0/oxydraw backlogs from this run, so they were filed in forge Triage (precedent: ops TASK-2339 tracks event0 from ops): TASK-0046 (dbsec: forge-sync -> ops init --rust --check, pre-release -> verify/qa), TASK-0047 (event0/oxydraw adopt the foundation), TASK-0048 (forge deletes config mirrors, depends on TASK-0046).
 
 <!-- SECTION:NOTES:END -->

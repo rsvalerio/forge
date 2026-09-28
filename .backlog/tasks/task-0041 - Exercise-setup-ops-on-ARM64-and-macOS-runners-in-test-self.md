@@ -1,13 +1,15 @@
 ---
 id: TASK-0041
 title: 'Exercise setup-ops on ARM64 and macOS runners in test-self'
-status: Triage
+status: Done
 assignee: []
 created_date: '2026-09-28 14:01'
+updated_date: '2026-09-28 17:04'
 labels:
   - code-review-rust
   - ci
 dependencies: []
+parent_task_id: 'TASK-0045'
 modified_files:
   - .github/workflows/test-self.yml
   - actions/setup-ops/setup-ops.sh
@@ -29,5 +31,12 @@ ordinal: 1000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 test-self runs setup-ops (happy path, ops --version asserted) on an ARM64 Linux runner and a macOS runner
+- [x] #1 test-self runs setup-ops (happy path, ops --version asserted) on an ARM64 Linux runner and a macOS runner
+
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+test-self job setup-ops-platforms: matrix [ubuntu-24.04-arm, macos-latest], installs ops 0.72.0 via ./actions/setup-ops and asserts RUNNER_ARCH=ARM64, ops on PATH is the installed path, version output, and `ops --version` = "ops 0.72.0". CI-only; locally verified the shasum -a 256 fallback by running setup-ops.sh with sha256sum removed from PATH (checksum ok, ops 0.72.0 installed), and that the v0.72.0 release carries aarch64-unknown-linux-gnu and aarch64-apple-darwin tarballs. No change to setup-ops.sh was needed.
+<!-- SECTION:NOTES:END -->

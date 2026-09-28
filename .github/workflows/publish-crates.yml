@@ -2,7 +2,8 @@ name: Publish to crates.io
 
 # Built now, adopted later (PLAN.md §5). This workflow exists so the capability is proven
 # and not written from scratch under time pressure on the day it is wanted — but it ships
-# with NO real consumer. Its only caller is forge-testbed, permanently in `--dry-run`.
+# with NO real consumer. Its test callers are forge-testbed and forge's own test-self.yml
+# (against ci/fixtures/publish-crates), both permanently in `--dry-run`.
 #
 # crates.io publication is irreversible: yanking hides a version but never deletes it, and
 # the crate name is claimed forever. Hence two independent safety interlocks below —

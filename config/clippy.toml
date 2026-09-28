@@ -1,15 +1,15 @@
-# Canonical clippy configuration.
+# Mirror of ops's Rust foundation template: extensions-rust/foundation/templates/clippy.toml
+# in rsvalerio/ops. ops is the single source. `ops init --rust` writes this file into a
+# repo and `ops init --rust --check` reports drift from it (forge docs/foundation.md).
+# This copy exists only for repos that still vendor forge's config/ (dbsec's forge-sync,
+# forge TASK-0046), and is deleted once none do (TASK-0048). Change the template in ops,
+# then copy its keys here; never edit this side first.
 #
-# Note the filename: ops uses `clippy.toml` and event0 uses `.clippy.toml` for the same
-# purpose. Cargo documents the non-dotted spelling, so that is the standard here (PLAN.md
-# §3.3). Consumers adopting this should rename, not add a second file — clippy reads only
-# one, and having both is how the two spellings silently disagree.
-#
-# `msrv` is deliberately absent: it differs per repo (ops 1.80, oxydraw 1.85, event0 1.92)
-# and belongs next to the `rust-version` it must match. Set it in the consumer's own file.
+# `msrv` is deliberately absent: it differs per repo and belongs next to the `rust-version`
+# it must match. `ops init --rust` sets it from the root's `rust-version`.
 
-# ops used 25; event0 used 10 to match its stricter internal guideline. 25 is the baseline
-# a repo can adopt without a refactor first — tighten locally rather than loosening here.
+# 25 is the baseline a repo can adopt without a refactor first. Tighten it locally (with a
+# waiver) rather than loosening it here.
 cognitive-complexity-threshold = 25
 
 too-many-arguments-threshold = 5
@@ -22,6 +22,13 @@ too-many-lines-threshold = 100
 # Short binding names that are clearer than any expansion in loops, closures and channels.
 allowed-idents-below-min-chars = ["x", "y", "i", "j", "k", "n", "id", "tx", "rx", "db", "ok"]
 
-# These crates publish to crates.io eventually; renaming a public item is a breaking change,
-# so clippy should not propose one.
+# Renaming a public item is a breaking change, so clippy should not propose one.
 avoid-breaking-exported-api = true
+
+# Panic-adjacent lints are denied in production code but fine in tests. These four keys
+# cover exactly `unwrap_used`, `expect_used`, `panic` and `indexing_slicing`; clippy has no
+# equivalent key for any other lint.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-panic-in-tests = true
+allow-indexing-slicing-in-tests = true

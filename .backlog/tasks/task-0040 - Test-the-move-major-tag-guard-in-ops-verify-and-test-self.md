@@ -1,13 +1,15 @@
 ---
 id: TASK-0040
 title: 'Test the move-major-tag guard in ops verify and test-self'
-status: Triage
+status: Done
 assignee: []
 created_date: '2026-09-28 13:59'
+updated_date: '2026-09-28 17:03'
 labels:
   - ci
   - test
 dependencies: []
+parent_task_id: 'TASK-0045'
 modified_files:
   - actions/move-major-tag/move-major-tag.sh
   - .ops.toml
@@ -30,6 +32,13 @@ ordinal: 1000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 A move-major-tag.test.sh covers below/equal/above/non-numeric cases in check-only mode
-- [ ] #2 It runs in ops verify and in test-self.yml
+- [x] #1 A move-major-tag.test.sh covers below/equal/above/non-numeric cases in check-only mode
+- [x] #2 It runs in ops verify and in test-self.yml
+
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+move-major-tag.test.sh wired as [commands.test-move-major-tag] in .ops.toml verify; test-self.yml runs it through its lint job (`ops verify`), which is how pool-update.test.sh runs there too and what .ops.toml requires (a check added anywhere else runs nowhere). Four mutants of the guard (-ge, -ne, check-only bypass, weakened non-numeric case) all fail the test.
+<!-- SECTION:NOTES:END -->

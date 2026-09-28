@@ -1,15 +1,16 @@
 ---
 id: TASK-0028
 title: 'Reconcile forge config/clippy.toml with rust-make-clippy-pedantic''s lint policy'
-status: Triage
+status: Done
 assignee: []
 created_date: '2026-09-28 10:59'
-updated_date: '2026-09-28 13:52'
+updated_date: '2026-09-28 17:06'
 labels:
   - ops-alignment
   - lint
 dependencies:
   - TASK-0025
+parent_task_id: 'TASK-0043'
 modified_files:
   - config/clippy.toml
 priority: low
@@ -31,11 +32,15 @@ dedup_key: 'ops-align:clippy-policy'
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 One source for clippy.toml keys and the `[workspace.lints]` policy, chosen per the foundation decision; the other side references it
+- [x] #1 One source for clippy.toml keys and the `[workspace.lints]` policy, chosen per the foundation decision; the other side references it
+
 <!-- AC:END -->
 
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
 Per TASK-0025's decision, the single source for clippy.toml and [workspace.lints] is ops's embedded templates (ops TASK-2330); reconcile forge config/clippy.toml into it, then point forge at ops.
+
+TASK-0043: ops TASK-2330 landed (ops PR #78, released in v0.74.0; ops extensions-rust/foundation/templates/). forge config/clippy.toml now carries the ops template keys (added the four allow-*-in-tests keys; tomllib-equal to the ops template, as are deny.toml and rustfmt.toml) under a header naming ops as the single source; the [workspace.lints] policy is referenced from docs/foundation.md and docs/consuming.md rather than copied. The mirrors stay only for dbsec forge-sync; deletion is TASK-0048.
+
 <!-- SECTION:NOTES:END -->

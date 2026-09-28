@@ -1,0 +1,14 @@
+# test-self fixture for publish-crates.yml, exercised only through `cargo publish --dry-run`
+# (auth: none, allow-real-publish left false: README design rule 2). Unlike the rust-ci
+# fixtures it must be publishable — no `publish = false`, and the metadata crates.io
+# requires — or the dry run would reject it before exercising anything.
+[package]
+name = "forge-fixture-publish"
+version = "0.0.0"
+edition = "2021"
+description = "forge test-self fixture for publish-crates.yml; never published."
+license = "Apache-2.0"
+repository = "https://github.com/rsvalerio/forge"
+
+# Its own workspace root, so cargo never looks further up the tree for one.
+[workspace]

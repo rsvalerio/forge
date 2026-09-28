@@ -1,0 +1,2 @@
+# Must equal Cargo.toml's rust-version: `ops msrv` fails when the two disagree.
+msrv = "1.85"

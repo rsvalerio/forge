@@ -1,0 +1,73 @@
+name: setup rust
+description: >-
+  The setup every rust-ci.yml `engine: ops` job shares: a Rust toolchain, a compile cache
+  (sccache or Swatinem/rust-cache), and ops plus any other tools at the versions forge's
+  mise.toml pins (via setup-tools). Load it from the forge checkout at `.forge`.
+
+# One copy of what the per-job blocks in rust-ci.yml's `engine: cargo` jobs repeat six
+# times. It calls setup-tools as `./.forge/actions/setup-tools`: a composite action cannot
+# `uses:` a path relative to itself, so this action only works where forge is checked out
+# at `.forge` — which is how every forge reusable workflow loads its actions (see
+# docs/versioning.md). The toolchain step's `build-warnings: ""` and `cache: false` are
+# explained in rust-ci.yml's header.
+
+inputs:
+  toolchain:
+    description: Rust toolchain to install.
+    required: false
+    default: stable
+  components:
+    description: Extra toolchain components, e.g. `rustfmt, clippy`.
+    required: false
+    default: ""
+  compile-cache:
+    description: >-
+      `sccache` (the caller sets RUSTC_WRAPPER), `rust-cache` (Swatinem/rust-cache over
+      `target/` in `working-directory`), or `none` for a job that compiles nothing.
+    required: false
+    default: sccache
+  working-directory:
+    description: Directory containing the Cargo workspace; keys the rust-cache.
+    required: false
+    default: "."
+  tools:
+    description: Tools for setup-tools, e.g. `ops,cargo-nextest`.
+    required: false
+    default: ops
+  token:
+    description: Token for downloading releases.
+    required: false
+    default: ${{ github.token }}
+
+runs:
+  using: composite
+  steps:
+    - name: Check compile-cache
+      shell: bash
+      env:
+        COMPILE_CACHE: ${{ inputs.compile-cache }}
+      run: |
+        case "$COMPILE_CACHE" in
+          sccache | rust-cache | none) ;;
+          *) echo "::error::setup-rust: compile-cache must be sccache, rust-cache or none, got '${COMPILE_CACHE}'."; exit 1 ;;
+        esac
+
+    - uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+      with:
+        toolchain: ${{ inputs.toolchain }}
+        components: ${{ inputs.components }}
+        build-warnings: ""
+        cache: false
+
+    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
+      if: inputs.compile-cache == 'sccache'
+
+    - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      if: inputs.compile-cache == 'rust-cache'
+      with:
+        workspaces: ${{ inputs.working-directory }}
+
+    - uses: ./.forge/actions/setup-tools
+      with:
+        tools: ${{ inputs.tools }}
+        token: ${{ inputs.token }}

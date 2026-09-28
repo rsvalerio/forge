@@ -1,13 +1,15 @@
 ---
 id: TASK-0039
 title: 'Exercise publish-crates.yml in test-self as a dry run against a fixture crate'
-status: Triage
+status: Done
 assignee: []
 created_date: '2026-09-28 13:58'
+updated_date: '2026-09-28 17:03'
 labels:
   - ci
   - test
 dependencies: []
+parent_task_id: 'TASK-0045'
 modified_files:
   - .github/workflows/test-self.yml
   - .github/workflows/publish-crates.yml
@@ -29,5 +31,6 @@ ordinal: 1000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 test-self calls ./.github/workflows/publish-crates.yml with dry-run: true (auth: none) against a small in-repo fixture crate on every PR
+- [x] #1 test-self calls ./.github/workflows/publish-crates.yml with dry-run: true (auth: none) against a small in-repo fixture crate on every PR
+
 <!-- AC:END -->
