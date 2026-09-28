@@ -1,10 +1,10 @@
 ---
 id: TASK-0043
 title: 'code-review-plan-wave9'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-28 16:59'
-updated_date: '2026-09-28 16:59'
+updated_date: '2026-09-28 17:07'
 labels:
   - code-review-wave
 dependencies:
@@ -42,4 +42,7 @@ Foundation docs and shared-config policy: write docs/foundation.md from the reco
 
 <!-- SECTION:NOTES:BEGIN -->
 Overlaps: none
+
+Branch: code-review/TASK-0043
+
 <!-- SECTION:NOTES:END -->
