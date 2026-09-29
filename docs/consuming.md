@@ -26,13 +26,13 @@ jobs:
     uses: rsvalerio/forge/.github/workflows/rust-ci.yml@v1
 ```
 
-| Job | Runs | Input that turns it off |
+| Check | Runs | Input that turns it off |
 |---|---|---|
-| `ops verify` | fmt-check, whitespace and end-of-file checks, clippy, build, JSON/YAML parse checks, doc | — |
-| `ops test` | `ops next` (nextest), then `ops test-doc` (doctests, which nextest skips) | `run-tests: false` |
-| `ops deps` | `ops deps --check`: cargo-deny, and cargo-machete's unused-dependency warning | `run-deny: false` |
-| `ops sec` | Trivy secret and vulnerability scans | `run-sec: false` |
-| `MSRV` | `ops msrv --install` (below) | on only with `run-msrv: true` |
+| `verify` | `ops verify`: fmt-check, whitespace and end-of-file checks, clippy, build, JSON/YAML parse checks, doc | — |
+| `test` | `ops next` (nextest), then `ops test-doc` (doctests, which nextest skips) | `run-tests: false` |
+| `deps` | `ops deps --check`: cargo-deny, and cargo-machete's unused-dependency warning | `run-deny: false` |
+| `sec` | `ops sec`: Trivy secret and vulnerability scans | `run-sec: false` |
+| `msrv` | `ops msrv --install` (below) | on only with `run-msrv: true` |
 
 The tools come from **your** `mise.toml`: every job runs `jdx/mise-action`, which
 installs what it pins (cached), the same `mise install` your developers run. It needs at
@@ -60,10 +60,10 @@ serves a workspace in `backend/`.
 
 Each `ops` command is the ops Rust stack's default unless your `.ops.toml` overrides it,
 so tune CI there — for example `[extend.clippy] args = [...]`, or a `next` of your own —
-not through this workflow. `ops verify` is check-only from ops 0.77.0, and the verify job
-fails on an older ops, whose `verify` rewrites files and so would pass on the runner. For
-the same reason a repo that overrides or extends `verify` must keep it check-only. The
-other inputs are `working-directory`, `runs-on` and `env-json` (for `ops test`).
+not through this workflow. Pin ops 0.77.0 or later: from that release `ops verify` is
+check-only, while an older ops's `verify` rewrites files and so would pass on the runner.
+For the same reason a repo that overrides or extends `verify` must keep it check-only. The
+other inputs are `working-directory`, `runs-on` and `env-json` (for the `test` job).
 
 What the gates hold a repo to:
 
@@ -92,7 +92,8 @@ to your own `mise.toml` and removed `toolchain`, `use-sccache` and `forge-ref`. 
   `test-args` carried into `.ops.toml`.
 - Add a `mise.toml` pinning the tools (above). The toolchain moves from `toolchain:` or
   `rust-toolchain.toml` to its `rust` entry.
-- Update a branch ruleset that requires the old job names to the ones in the table above.
+- Update a branch ruleset that requires the old check names to the ones in the table above
+  (`verify`, `test`, `deps`, `sec`, `msrv`, under the caller's job name).
 - Expect the first run to surface what the stricter gates catch (the list above), and fix
   it in the repository.
 
@@ -101,7 +102,7 @@ call — it is Bun/SPA-specific with one consumer.
 
 ### MSRV
 
-`run-msrv: true` adds an **MSRV** job running `ops msrv --install`: it
+`run-msrv: true` adds an `msrv` job running `ops msrv --install`: it
 reads `rust-version` from `Cargo.toml` (`[workspace.package]`, else `[package]`), fails
 unless `clippy.toml`'s `msrv` equals it, installs exactly that toolchain and runs
 `cargo check --workspace --all-features --all-targets` on it. It catches what clippy's

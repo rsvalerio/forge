@@ -109,8 +109,8 @@ Four points were open when the decision was made:
 
 1. **Whose `mise.toml` a reusable workflow reads.** rust-ci reads the **caller's**: its
    jobs run `jdx/mise-action` on the caller's checkout, so CI installs exactly what the
-   repo's developers install, and rust-ci loads nothing from forge. The one pin rust-ci
-   enforces is a floor: ops 0.77.0, the first whose `verify` is check-only. bump and the
+   repo's developers install, and rust-ci loads nothing from forge. Callers pin ops 0.77.0 or
+   later, the first whose `verify` is check-only. bump and the
    publish workflows still read forge's `mise.toml` at `forge-ref` through setup-tools.
 2. **setup-ops stays.** It is a published `v1` action, so retiring it would break its
    callers, and setup-tools installs ops through it: an exact version, the release's

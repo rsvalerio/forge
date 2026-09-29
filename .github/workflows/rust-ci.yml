@@ -22,36 +22,30 @@ on:
           Directory containing the Cargo workspace. oxydraw uses `backend`. mise reads
           mise.toml from here and every directory above it up to the repository root.
         type: string
-        required: false
         default: "."
       runs-on:
         description: Runner label.
         type: string
-        required: false
         default: ubuntu-latest
       env-json:
         description: >-
           JSON object of extra environment variables for the test job, e.g.
           '{"OPS_LOG_LEVEL":"debug"}'.
         type: string
-        required: false
         default: "{}"
       run-deny:
         description: Run `ops deps --check` (cargo-deny and cargo-machete).
         type: boolean
-        required: false
         default: true
       run-tests:
         description: Run the test job.
         type: boolean
-        required: false
         default: true
       run-sec:
         description: >-
           Run `ops sec` (Trivy secret and vulnerability scans), the security leg of the
           gate contract.
         type: boolean
-        required: false
         default: true
       run-msrv:
         description: >-
@@ -60,7 +54,6 @@ on:
           it, installs that toolchain and runs
           `cargo check --workspace --all-features --all-targets` on it.
         type: boolean
-        required: false
         default: false
 
 # The ceiling every consumer runs under, as in the other workflows here. A reusable
@@ -82,19 +75,13 @@ env:
   # Build against the committed Cargo.lock: ops adds `--locked` to every cargo command
   # that resolves it.
   OPS__CARGO__LOCKED: "true"
-  # A CI checkout never recompiles the same crate twice, so incremental output is only
-  # weight in the target/ cache.
-  CARGO_INCREMENTAL: "0"
-  # The caller's mise.toml sits in the checkout it asked us to build; trust it rather
-  # than failing on mise's untrusted-config prompt.
-  MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}
-  MISE_YES: "1"
 
 # Every job: check out, `mise install` the caller's mise.toml (jdx/mise-action caches the
-# installs, keyed on the config), cache target/ where the job compiles, then run one leg
-# of the gate contract. What each `ops` command runs is the ops Rust stack's default
-# unless the caller's `.ops.toml` overrides it, so a repo tunes its CI there, not through
-# this workflow's inputs.
+# installs, keyed on the config, and trusts the checkout's config), cache target/ where
+# the job compiles (Swatinem/rust-cache, which also turns incremental builds off), then
+# run one leg of the gate contract. Each check is named after its job id. What each
+# `ops` command runs is the ops Rust stack's default unless the caller's `.ops.toml`
+# overrides it, so a repo tunes its CI there, not through this workflow's inputs.
 #
 # jdx/mise-action's `version` pins mise itself; Dependabot moves the SHA but not
 # `version`, so bump it with forge's mise.toml and actions/setup-tools (README "Layout").
@@ -104,7 +91,6 @@ jobs:
   # The static gate: fmt-check, the whitespace and end-of-file checks, clippy
   # (--all-targets, so test code is linted), build, the JSON/YAML parse checks and doc.
   verify:
-    name: ops verify
     runs-on: ${{ inputs.runs-on }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -117,23 +103,11 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: ${{ inputs.working-directory }}
-      # `verify` is check-only from ops 0.77.0; an older ops's `verify` rewrites files and
-      # would pass on a dirty tree. The pin is the caller's, so the floor is checked here.
-      - name: Require ops 0.77.0 or later
-        run: |
-          have="$(ops --version | awk '{print $2}')"
-          lowest="$(printf '%s\n' 0.77.0 "$have" | sort -V | head -n1)"
-          if [ "$lowest" != 0.77.0 ]; then
-            echo "::error::rust-ci: ops ${have} rewrites files in 'ops verify'; pin ops >= 0.77.0 in mise.toml."
-            exit 1
-          fi
-      - name: ops verify
+      - run: ops verify
         working-directory: ${{ inputs.working-directory }}
-        run: ops verify
 
   # nextest for the tests, `ops test-doc` for the doctests nextest does not run.
-  ops-test:
-    name: ops test
+  test:
     if: inputs.run-tests
     runs-on: ${{ inputs.runs-on }}
     env: ${{ fromJSON(inputs.env-json) }}
@@ -148,18 +122,15 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: ${{ inputs.working-directory }}
-      - name: ops next
+      - run: ops next
         working-directory: ${{ inputs.working-directory }}
-        run: ops next
-      - name: ops test-doc
+      - run: ops test-doc
         working-directory: ${{ inputs.working-directory }}
-        run: ops test-doc
 
   # cargo-deny (advisories, licenses, bans, sources) and cargo-machete (unused
   # dependencies, a warning only: it is heuristic). `--check` is the CI-safe mode: no
   # upgrade survey, so no cargo-edit. Compiles nothing, so no target/ cache.
-  ops-deps:
-    name: ops deps
+  deps:
     if: inputs.run-deny
     runs-on: ${{ inputs.runs-on }}
     steps:
@@ -170,13 +141,11 @@ jobs:
         with:
           version: 2026.9.14
           working_directory: ${{ inputs.working-directory }}
-      - name: ops deps --check
+      - run: ops deps --check
         working-directory: ${{ inputs.working-directory }}
-        run: ops deps --check
 
   # Trivy's secret scan always, and its vulnerability scan wherever a lockfile is found.
-  ops-sec:
-    name: ops sec
+  sec:
     if: inputs.run-sec
     runs-on: ${{ inputs.runs-on }}
     steps:
@@ -187,15 +156,13 @@ jobs:
         with:
           version: 2026.9.14
           working_directory: ${{ inputs.working-directory }}
-      - name: ops sec
+      - run: ops sec
         working-directory: ${{ inputs.working-directory }}
-        run: ops sec
 
   # Every other job builds on the pinned toolchain, so without this nothing checks the
   # `rust-version` a crate declares. `ops msrv` owns the logic (ops's own CI runs it
   # too), so it is not a second copy in shell here.
   msrv:
-    name: MSRV
     if: inputs.run-msrv
     runs-on: ${{ inputs.runs-on }}
     steps:
@@ -209,6 +176,5 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: ${{ inputs.working-directory }}
-      - name: ops msrv --install
+      - run: ops msrv --install
         working-directory: ${{ inputs.working-directory }}
-        run: ops msrv --install

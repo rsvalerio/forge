@@ -148,7 +148,7 @@ The same release moves rust-ci's tools to the **caller's** `mise.toml`: every jo
 `use-sccache` inputs are removed with the engine: the toolchain is the caller's `rust`
 entry in `mise.toml` (or the runner's stable), and `target/` is cached by
 `Swatinem/rust-cache` only. A caller needs a `mise.toml` that pins at least ops (0.77.0 or
-later, which the verify job enforces) and the tools of the jobs it runs. The
+later, the first check-only `verify`) and the tools of the jobs it runs. The
 `setup-rust` action, whose only user was rust-ci, is removed.
 
 Pinning tools is not treated as breaking. `rust-ci`'s cargo-deny and `bump`'s cocogitto and
