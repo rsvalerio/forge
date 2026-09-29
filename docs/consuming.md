@@ -700,7 +700,15 @@ verified way to get it onto a runner.
   reviewed: set `sha256` to the tarball's hash (from the release's `sha256.sum`) to pin
   that too.
 - **Platforms.** Linux and macOS runners, X64 and ARM64: the four targets ops publishes.
-  Any other runner fails the step rather than guessing an asset name.
+  Any other runner fails the step rather than guessing an asset name. test-self runs
+  setup-ops on X64 and ARM64 Linux and on ARM64 macOS, but **not on X64 (Intel) macOS**:
+  GitHub's last x86_64 macOS images (`macos-15-intel`, `macos-26-intel`) are supported
+  only until August 2027, when x86_64 leaves GitHub Actions, so there is no durable runner
+  to test on. The `macOS/X64` mapping to `x86_64-apple-darwin` was checked by hand against
+  ops 0.75.0 on 2026-09-29 (the asset, its `.sha256` sidecar and the archive layout are
+  the ones setup-ops expects, and the binary is x86_64 Mach-O), but it has never run
+  there. On a self-hosted or legacy Intel Mac, you are the first to run it: check
+  `ops --version` in the job, and report a failure.
 - **`ops --version`** is asserted to report the requested version before the binary is
   installed, so a binary that does not run on the runner never lands on `PATH`.
 - The download uses `gh` with `token` (default `github.token`), which avoids anonymous

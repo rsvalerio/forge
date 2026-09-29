@@ -185,7 +185,9 @@ jobs:
   # where sha256sum is absent, so a consumer there would otherwise be the first to run
   # those paths. Both runners are ARM64; the assert fails if an image change moves one
   # off it, rather than quietly testing X64 twice. The version is mise.toml's ops pin,
-  # the one the verify and qa jobs install.
+  # the one the verify and qa jobs install. X64 macOS is left out on purpose: GitHub drops
+  # x86_64 macOS in August 2027, so no runner for it would last (docs/consuming.md,
+  # setup-ops, "Platforms").
   setup-ops-platforms:
     name: setup-ops on ${{ matrix.runner }}
     strategy:

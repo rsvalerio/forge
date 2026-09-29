@@ -1,10 +1,10 @@
 ---
 id: TASK-0049
 title: 'Exercise setup-ops''s x86_64-apple-darwin mapping in test-self'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-28 17:05'
-updated_date: '2026-09-29 13:37'
+updated_date: '2026-09-29 16:11'
 labels:
   - ci
   - test
@@ -31,5 +31,12 @@ ordinal: 1000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 test-self installs ops via setup-ops on an X64 macOS runner and asserts ops --version, or the task records why no supported runner exists and the gap is documented in docs/consuming.md
+- [x] #1 test-self installs ops via setup-ops on an X64 macOS runner and asserts ops --version, or the task records why no supported runner exists and the gap is documented in docs/consuming.md
+
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Took the AC alternative (2026-09-29). setup-ops is unchanged by TASK-0050 (design point 2: it stays, and setup-tools installs ops through it), so its macOS/X64 mapping still matters. No durable Intel macOS GitHub runner exists: actions/runner-images#13045 says x86_64 leaves GitHub Actions in August 2027; the only x86_64 macOS labels (macos-15-intel, macos-26-intel, and the paid -large ones) end then. Adding one would put a job in test-self, the release gate, that fails or queues forever from that date. Checked by hand instead: ops v0.75.0 ops-x86_64-apple-darwin.tar.gz exists, its .sha256 sidecar matches the download (817376a1...29f2), the archive holds ops-x86_64-apple-darwin/ops, and `file` reports Mach-O 64-bit x86_64. Only running it (the ops --version assert) is unexercised. Documented in docs/consuming.md (setup-ops, Platforms) and in the setup-ops-platforms comment in test-self.yml. If the owner wants coverage until the sunset, add macos-26-intel to that matrix with an X64 branch in the arch assert, and remove it before August 2027.
+<!-- SECTION:NOTES:END -->
