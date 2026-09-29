@@ -3,7 +3,7 @@
 Shared CI, release and lint machinery for `ops`, `oxydraw`, `event0` and `my-cloud`.
 
 A software forge is the build-and-release layer, which is what this is: reusable workflows,
-composite actions, canonical lint configuration and community templates, in one place
+composite actions, the tool pins they install and community templates, in one place
 instead of copy-pasted into every repository.
 
 ## Why
@@ -47,7 +47,6 @@ actions/                      # composite actions — step-level, run inside the
   test-self.yml               #   forge's own CI
 ci/lint.sh                    # static checks that `ops verify` runs
 ci/fixtures/rust-ci/          # crates test-self runs rust-ci.yml against
-config/                       # mirrors of ops's deny.toml / clippy.toml / rustfmt.toml templates
 templates/                    # SECURITY, CONTRIBUTING, CODE_OF_CONDUCT, issue + PR templates
 docs/                         # foundation.md: the gate contract and shared Rust config (from ops)
 mise.toml                     # every tool version: forge's workflows, and the local gates
@@ -122,7 +121,8 @@ jobs:
 
 Everything in [plans/PLAN.md](plans/PLAN.md) that lives *inside this repository* is
 implemented: the composite actions, the six reusable workflows, `test-self.yml`,
-the shared configs, the templates and the docs.
+the templates and the docs. The shared Rust configs moved to ops's foundation templates
+([docs/foundation.md](docs/foundation.md)).
 
 `v1` is published (currently at `v0.4.0`), and these repos call forge today:
 

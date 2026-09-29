@@ -29,9 +29,8 @@ Updates ship with ops releases, so there are no vendored copies to sync.
 forge is not a source of gate or config defaults. It ships the CI that runs the gates
 ([rust-ci.yml](../.github/workflows/rust-ci.yml)), the action that installs a pinned
 ops ([setup-ops](consuming.md#setup-ops)), and the tool versions its workflows install
-([Pipeline tools](#pipeline-tools)). forge's own `config/*.toml` files are mirrors of
-the ops templates, kept only for repos that still vendor them (see
-[Transition](#transition)).
+([Pipeline tools](#pipeline-tools)). It carries no copy of the config files: its old
+`config/*.toml` mirrors of the ops templates were deleted (forge TASK-0048).
 
 ## The gate contract
 
@@ -175,12 +174,12 @@ backlog:
 | CI runs `ops` gates instead of raw cargo | forge | forge TASK-0026 |
 | ops's own CI moves onto forge's `rust-ci.yml` and `setup-ops` | ops | ops TASK-2329 |
 | event0 drops its re-declared cargo built-ins for `[cargo] locked = true` | event0 | ops TASK-2339 |
-| dbsec replaces `forge-sync` with `ops init --rust --check` and adopts `verify`/`qa` | dbsec | forge TASK-0046 |
+| dbsec replaces `forge-sync` with `ops init --rust --check` and adopts `verify`/`qa`. Until it does, forge's `v1` must not move past the deletion of `config/*.toml`: dbsec's `forge-sync` reads them at `v1` | dbsec | dbsec TASK-1131 (was forge TASK-0046) |
 | event0 and oxydraw adopt the foundation files and gates | event0, oxydraw | forge TASK-0047 |
-| forge deletes its `config/*.toml` mirrors once no repo vendors them | forge | forge TASK-0048 |
 | `ops init --rust` scaffolds `mise.toml` with the gate tools and `--check` reports pin drift | ops | to be filed in ops (forge TASK-0050) |
 | rust-ci and bump install at the caller's own `mise.toml` pins, opt-in on `v1` | forge | forge TASK-0052 |
 
 Already done: the ops built-ins for check-only fmt, `--locked` and a CI-safe `deps`
 (ops TASK-2322, TASK-2323, TASK-2324), the embedded templates and `ops init --rust`
-(ops TASK-2330), and the ai skills' templates derived from ops (ai TASK-0008).
+(ops TASK-2330), the ai skills' templates derived from ops (ai TASK-0008), and the
+deletion of forge's `config/*.toml` mirrors (forge TASK-0048).

@@ -2,7 +2,7 @@
 # forge's static checks, one per subcommand. `ops verify` (.ops.toml) calls each one, and
 # test-self.yml's `ops verify` check runs it, so a new subcommand is wired in .ops.toml only.
 #
-#   ci/lint.sh shellcheck | executable | action-yml | config-toml | pinned-actions
+#   ci/lint.sh shellcheck | executable | action-yml | pinned-actions
 #
 # Run from the repository root. Errors go to stderr (ops shows a failing step's stderr)
 # as GitHub `::error` annotations, which the runner parses on either stream and
@@ -51,14 +51,6 @@ check_action_yml() {
   return $status
 }
 
-check_config_toml() {
-  local f
-  for f in config/*.toml; do
-    yq -p toml -o json "$f" >/dev/null || { echo "::error file=$f::invalid TOML" >&2; return 1; }
-    echo "ok: $f"
-  done
-}
-
 # README design rule: a third-party action is pinned to a full commit SHA with its
 # version tag in a comment. Local (`./`) and forge's own (`rsvalerio/forge/`) refs are
 # exempt; forge's own follow docs/versioning.md.
@@ -84,10 +76,9 @@ case "${1:-}" in
   shellcheck) check_shellcheck ;;
   executable) check_executable ;;
   action-yml) check_action_yml ;;
-  config-toml) check_config_toml ;;
   pinned-actions) check_pinned_actions ;;
   *)
-    echo "usage: $0 shellcheck|executable|action-yml|config-toml|pinned-actions" >&2
+    echo "usage: $0 shellcheck|executable|action-yml|pinned-actions" >&2
     exit 2
     ;;
 esac

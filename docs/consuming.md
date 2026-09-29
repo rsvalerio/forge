@@ -768,7 +768,5 @@ Scaffold it with `ops init --rust` and keep it current with `ops init --rust --c
 (ops 0.74.0 or later); see [docs/foundation.md](foundation.md) for the gate contract, how
 to adopt the foundation and how updates arrive.
 
-`config/deny.toml`, `config/clippy.toml` and `config/rustfmt.toml` in this repo are
-mirrors of the ops templates, kept only for repos that still vendor them (dbsec's
-`forge-sync`). Do not start vendoring them in a new repo, and change the templates in ops
-rather than here.
+forge no longer carries copies of these files: its `config/*.toml` mirrors were deleted
+(forge TASK-0048). Change the templates in ops.
