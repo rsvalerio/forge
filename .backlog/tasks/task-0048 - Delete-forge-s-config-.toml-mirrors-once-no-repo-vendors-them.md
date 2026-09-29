@@ -1,10 +1,10 @@
 ---
 id: TASK-0048
 title: 'Delete forge''s config/*.toml mirrors once no repo vendors them'
-status: Triage
+status: To Do
 assignee: []
 created_date: '2026-09-28 17:04'
-updated_date: '2026-09-29 13:37'
+updated_date: '2026-09-29 16:03'
 labels:
   - ops-alignment
 dependencies: []

@@ -735,12 +735,19 @@ through mise — so a workflow at a given forge ref always installs that ref's v
   install compiles it.
 - `bump.yml`'s `install-tools` goes through it, as do rust-ci's cargo-deny and every
   `engine: ops` job.
+- Your repository's own `mise.toml` is for your laptops: copy into it the entries of the
+  tools your gates run, at forge's pins, so `mise install` gets what CI runs.
+  [docs/foundation.md](foundation.md#pipeline-tools) lists every tool, what needs it and its
+  entry. forge's workflows do not read your `mise.toml` on `v1` (forge TASK-0052 tracks an
+  opt-in).
 
 ## setup-rust
 
 The setup every rust-ci `engine: ops` job shares: `setup-rust-toolchain` (with
 `build-warnings: ""` and its own cache off), a compile cache (`compile-cache: sccache`,
-`rust-cache` or `none`), and `setup-tools` for `tools` (default `ops`). It calls
+`rust-cache` or `none`), and `setup-tools` for `tools` (default `ops`). sccache is
+installed by `mozilla-actions/sccache-action`, which wires it to the Actions cache, at
+the `sccache` pin in forge's `mise.toml`. It calls
 `setup-tools` from `./.forge`, so load it from a forge checkout at `.forge`.
 
 ---

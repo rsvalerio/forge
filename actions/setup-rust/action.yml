@@ -1,8 +1,9 @@
 name: setup rust
 description: >-
   The setup every rust-ci.yml `engine: ops` job shares: a Rust toolchain, a compile cache
-  (sccache or Swatinem/rust-cache), and ops plus any other tools at the versions forge's
-  mise.toml pins (via setup-tools). Load it from the forge checkout at `.forge`.
+  (sccache at forge's mise.toml pin, or Swatinem/rust-cache), and ops plus any other tools
+  at the versions forge's mise.toml pins (via setup-tools). Load it from the forge checkout
+  at `.forge`.
 
 # One copy of what the per-job blocks in rust-ci.yml's `engine: cargo` jobs repeat six
 # times. It calls setup-tools as `./.forge/actions/setup-tools`: a composite action cannot
@@ -59,8 +60,24 @@ runs:
         build-warnings: ""
         cache: false
 
+    # sccache comes from this action rather than from mise: it also hands sccache the
+    # Actions cache credentials, which only a JavaScript action can read. Its version is
+    # forge's mise.toml pin, not the action's default of the latest release.
+    - name: Read the sccache pin
+      id: sccache
+      if: inputs.compile-cache == 'sccache'
+      shell: bash
+      env:
+        FORGE_ROOT: ${{ github.action_path }}/../..
+      run: |
+        set -euo pipefail
+        version="$("${GITHUB_ACTION_PATH}/../setup-tools/setup-tools.sh" pin sccache)"
+        echo "version=v${version}" >>"$GITHUB_OUTPUT"
+
     - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
       if: inputs.compile-cache == 'sccache'
+      with:
+        version: ${{ steps.sccache.outputs.version }}
 
     - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       if: inputs.compile-cache == 'rust-cache'
