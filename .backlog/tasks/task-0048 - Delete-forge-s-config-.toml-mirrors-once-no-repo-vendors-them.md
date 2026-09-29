@@ -1,10 +1,10 @@
 ---
 id: TASK-0048
 title: 'Delete forge''s config/*.toml mirrors once no repo vendors them'
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-09-28 17:04'
-updated_date: '2026-09-29 16:12'
+updated_date: '2026-09-29 18:03'
 labels:
   - ops-alignment
 dependencies: []
@@ -33,7 +33,7 @@ ordinal: 1000
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [x] #1 config/*.toml and the lint-config-toml check are removed, and docs point only at ops's templates
-- [ ] #2 No consumer still reads forge's config/ (dbsec forge-sync retired first)
+- [x] #2 No consumer still reads forge's config/ (dbsec forge-sync retired first)
 
 <!-- AC:END -->
 
@@ -45,5 +45,7 @@ Moved 2026-09-29: the blocker, forge TASK-0046, now lives in dbsec as TASK-1131.
 AC#1 done 2026-09-29 (wave12): config/clippy.toml, deny.toml, rustfmt.toml deleted; ci/lint.sh config-toml and .ops.toml lint-config-toml removed; README layout, consuming.md "Shared configuration" and foundation.md point only at ops templates (docs/foundation.md). templates/ is untouched (dbsec also syncs templates/CONTRIBUTING.md, out of this task scope).
 
 AC#2 NOT met: dbsec origin/main (8f532bc) still runs forge-sync. Its .forge-sync/manifest maps clippy.toml, deny.toml, rustfmt.toml to forge config/*, and scripts/forge-sync-check.sh fetches them from raw.githubusercontent.com at the single ref dbsec workflows pin forge at, which is `v1` (bump.yml, publish-crates.yml and rust-ci.yml all @v1), not main. So deleting on main is safe while v1 stays where it is, but the next release that moves v1 past this commit turns dbsec forge-sync red (could not fetch config/...). CAVEAT FOR THE OWNER: v1 must not move until dbsec TASK-1131 lands (forge-sync retired). The Transition table in docs/foundation.md says the same. No other local repo reads forge config/ (forge-testbed and my-cloud only mention forge-sync in comments). Close AC#2 and this task once dbsec TASK-1131 is Done.
+
+AC#2 checked 2026-09-29: dbsec PR #88 (main 8d3d0f6) dropped forge-sync; no repo reads forge's config/ any more. v1 may now move past bffeece.
 
 <!-- SECTION:NOTES:END -->

@@ -1,10 +1,10 @@
 ---
 id: TASK-0050
 title: 'Install every pipeline and build tool from mise, on CI and laptops alike'
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-09-28 17:18'
-updated_date: '2026-09-29 16:09'
+updated_date: '2026-09-29 18:03'
 labels:
   - ops-alignment
   - ci
@@ -59,7 +59,7 @@ Sources: `ops explain verify|qa --json` in the ops repo (ops 0.75.0), grep of fo
 - [x] #1 docs/foundation.md lists every tool a Rust repo pipeline needs, the gate/workflow that needs it, and its mise.toml entry
 - [x] #2 forge's reusable workflows install tools from mise (the consumer's mise.toml, or a documented default) instead of taiki-e/install-action and ad-hoc installs
 - [x] #3 ops is pinned in mise.toml and the local and CI versions come from that one entry
-- [ ] #4 Follow-up filed in ops for scaffolding/drift-checking mise.toml from the foundation templates
+- [x] #4 Follow-up filed in ops for scaffolding/drift-checking mise.toml from the foundation templates
 
 <!-- AC:END -->
 
@@ -84,4 +84,7 @@ Description: forge TASK-0050 (2026-09-29) made mise the one install method for t
 AC: (1) the template ships in ops and `ops init --rust` writes mise.toml when missing; (2) `ops init --rust --check` reports a drifted or missing tool pin and honours waivers; (3) ops own mise.toml matches the template; (4) ops docs/foundation.md lists the file.
 ---
 Left In Progress only for AC#4; close it once the ops task exists.
+
+AC#4: filed in ops as TASK-2344 (ops main 458e8f1b, local, not pushed).
+
 <!-- SECTION:NOTES:END -->
