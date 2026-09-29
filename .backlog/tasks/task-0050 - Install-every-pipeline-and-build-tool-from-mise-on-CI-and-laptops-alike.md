@@ -1,14 +1,16 @@
 ---
 id: TASK-0050
 title: 'Install every pipeline and build tool from mise, on CI and laptops alike'
-status: Triage
+status: To Do
 assignee: []
 created_date: '2026-09-28 17:18'
+updated_date: '2026-09-29 13:37'
 labels:
   - ops-alignment
   - ci
   - decision
 dependencies: []
+parent_task_id: 'TASK-0051'
 modified_files:
   - mise.toml
   - docs/foundation.md

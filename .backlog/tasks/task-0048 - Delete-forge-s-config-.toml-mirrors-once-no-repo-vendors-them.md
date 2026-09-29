@@ -4,11 +4,10 @@ title: 'Delete forge''s config/*.toml mirrors once no repo vendors them'
 status: Triage
 assignee: []
 created_date: '2026-09-28 17:04'
-updated_date: '2026-09-28 17:05'
+updated_date: '2026-09-29 13:37'
 labels:
   - ops-alignment
-dependencies:
-  - TASK-0046
+dependencies: []
 modified_files:
   - config/clippy.toml
   - config/deny.toml
@@ -36,3 +35,9 @@ ordinal: 1000
 - [ ] #1 config/*.toml and the lint-config-toml check are removed, and docs point only at ops's templates
 - [ ] #2 No consumer still reads forge's config/ (dbsec forge-sync retired first)
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Moved 2026-09-29: the blocker, forge TASK-0046, now lives in dbsec as TASK-1131. Pick this up once dbsec TASK-1131 is Done (AC#2).
+<!-- SECTION:NOTES:END -->

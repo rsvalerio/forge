@@ -1,13 +1,15 @@
 ---
 id: TASK-0049
 title: 'Exercise setup-ops''s x86_64-apple-darwin mapping in test-self'
-status: Triage
+status: To Do
 assignee: []
 created_date: '2026-09-28 17:05'
+updated_date: '2026-09-29 13:37'
 labels:
   - ci
   - test
 dependencies: []
+parent_task_id: 'TASK-0051'
 modified_files:
   - .github/workflows/test-self.yml
   - actions/setup-ops/setup-ops.sh
