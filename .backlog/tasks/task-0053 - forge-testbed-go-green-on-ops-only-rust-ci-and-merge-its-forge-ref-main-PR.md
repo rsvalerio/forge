@@ -4,7 +4,7 @@ title: 'forge-testbed: go green on ops-only rust-ci and merge its forge-ref: mai
 status: Triage
 assignee: []
 created_date: '2026-09-29 19:01'
-updated_date: '2026-09-29 19:27'
+updated_date: '2026-09-29 19:42'
 labels:
   - ci
   - cross-repo
@@ -37,4 +37,7 @@ ordinal: 1000
 
 <!-- SECTION:NOTES:BEGIN -->
 2026-09-29: rust-ci now also installs from the caller's own mise.toml (no forge-ref/toolchain/use-sccache). forge-testbed therefore needs a mise.toml pinning at least ops >= 0.77.0, cargo-nextest, cargo-deny, cargo-machete and trivy (and rust, recommended); see docs/consuming.md 'rust-ci'. forge-testbed#5 (forge-ref: main) becomes moot for rust-ci, since rust-ci no longer loads forge actions; close it or keep it for other workflows.
+
+Update (1366e08): check names are verify, test, deps, sec, msrv; no ops floor guard, so pin ops >= 0.77.0 in forge-testbed's mise.toml.
+
 <!-- SECTION:NOTES:END -->
