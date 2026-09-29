@@ -79,10 +79,10 @@ Two points matter for adoption:
 
 Decided by the owner on 2026-09-28 (forge TASK-0050): mise is the one install method for
 the tools a repo's gates and pipelines run, identical on CI runners and laptops. A repo's
-`mise.toml` pins every such tool. Developers run `mise install`; forge's workflows install
-through [setup-tools](consuming.md#setup-tools), which reads the same kind of file. The
-Rust toolchain is the exception: it stays with `rust-toolchain.toml` and rustup, and is not
-duplicated in `mise.toml`.
+`mise.toml` pins every such tool, the Rust toolchain included. Developers run
+`mise install`; rust-ci runs the same `mise install` on the caller's own `mise.toml`, and
+forge's other workflows install through [setup-tools](consuming.md#setup-tools), which
+reads forge's.
 
 | Tool | Needed by | `mise.toml` entry (forge's pin) |
 |---|---|---|
@@ -95,10 +95,9 @@ duplicated in `mise.toml`.
 | trivy | `ops sec`; rust-ci `ops sec` | `trivy = "0.70.0"` (aqua) |
 | cocogitto (`cog`) | bump.yml | `cocogitto = "7.0.0"` (aqua) |
 | cargo-dist (`dist`) | a repo's dist-generated release workflow | `cargo-dist = "<version>"` (aqua), equal to `cargo-dist-version` in `dist-workspace.toml`, which is what dist's own workflow installs; forge pins none |
-| sccache | rust-ci's compile cache | `sccache = "0.18.0"` (aqua); on CI installed by `mozilla-actions/sccache-action` at this pin (below) |
 | gh, jq | bump, publish-\*, apt-pool-push scripts | preinstalled on GitHub runners; `gh` and `jq` (aqua) for laptops |
 | actionlint, shellcheck, yq | forge's own `ops verify` | `actionlint = "1.7.12"`, `shellcheck = "0.11.0"`, `yq = "4.53.6"` (aqua); forge only |
-| Rust toolchain, rustfmt, clippy | every cargo gate | not in `mise.toml`: `rust-toolchain.toml` and rustup locally, `setup-rust-toolchain` on CI |
+| Rust toolchain, rustfmt, clippy | every cargo gate | `rust = { version = "1.98.0", components = "rustfmt,clippy" }` (installed through rustup; mise sets `RUSTUP_TOOLCHAIN`). Optional for rust-ci: without it, the runner's stable toolchain runs |
 | dpkg-deb, tar, sha256sum or shasum, curl | publish-deb\*, setup-ops | the runner image; out of scope |
 
 forge's [`mise.toml`](../mise.toml) is the authority for the versions in the right-hand
@@ -106,15 +105,13 @@ column: bump them there, and copy the entries a repo needs into its own `mise.to
 
 ### How the pins reach CI
 
-The rollout keeps every consumer on `@v1` working. Four points were open when the decision
-was made. Each took the option that changes nothing for an unmodified caller:
+Four points were open when the decision was made:
 
-1. **Whose `mise.toml` a reusable workflow reads.** forge's, at `forge-ref`, as it has since
-   forge's workflows moved to setup-tools. That is the documented default. A consumer's own
-   `mise.toml` is not read on `v1`: a caller that has one would silently get other tool
-   versions, and one that has none would gain nothing. Until an opt-in to the caller's pins
-   exists (forge TASK-0052), a repo keeps its laptop pins equal to forge's by copying the
-   entries above.
+1. **Whose `mise.toml` a reusable workflow reads.** rust-ci reads the **caller's**: its
+   jobs run `jdx/mise-action` on the caller's checkout, so CI installs exactly what the
+   repo's developers install, and rust-ci loads nothing from forge. The one pin rust-ci
+   enforces is a floor: ops 0.77.0, the first whose `verify` is check-only. bump and the
+   publish workflows still read forge's `mise.toml` at `forge-ref` through setup-tools.
 2. **setup-ops stays.** It is a published `v1` action, so retiring it would break its
    callers, and setup-tools installs ops through it: an exact version, the release's
    `.sha256` checked before extraction, `ops --version` asserted. Locally, `mise install`
@@ -131,14 +128,8 @@ was made. Each took the option that changes nothing for an unmodified caller:
    compiles through `cargo:`. Check a new `github:` entry the same way before adding it, and
    prefer an `aqua:` entry where one exists (`aqua:taiki-e/cargo-llvm-cov`): mise verifies
    an aqua download against the checksum the aqua registry records for it, where it records
-   one. The mise binary CI runs is pinned by setup-tools
+   one. The mise binary CI runs is pinned by setup-tools and rust-ci
    (`version:` on `jdx/mise-action`) and bumped with `mise.toml` (README, "Layout").
-
-Two tools are pinned in `mise.toml` but installed on CI by something else. sccache comes
-from `mozilla-actions/sccache-action`, which also hands sccache the Actions cache
-credentials that only a JavaScript action can read; setup-rust passes it the `mise.toml`
-pin. The Rust toolchain comes from
-`setup-rust-toolchain` on CI and rustup locally, both reading the repo's toolchain.
 
 ## Adopting the foundation
 
@@ -154,7 +145,8 @@ In a Rust repo, with ops 0.74.0 or later:
    `pre-release`) becomes an `[extend.*]` of one of them, or is removed. Git hook commands
    (ops's `run-before-commit` and `run-before-push`) compose `verify` and `qa` rather than
    listing checks of their own.
-5. Call forge's `rust-ci.yml` for CI, so CI runs the same gates.
+5. Pin the gate tools and the toolchain in `mise.toml` (the table above), then call forge's
+   `rust-ci.yml` for CI, so CI runs the same gates with the same tools.
 
 ## Updating
 
@@ -174,8 +166,8 @@ backlog:
 | event0 drops its re-declared cargo built-ins for `[cargo] locked = true` | event0 | ops TASK-2339 |
 | dbsec replaces `forge-sync` with `ops init --rust --check` and adopts `verify`/`qa`. Until it does, forge's `v1` must not move past the deletion of `config/*.toml`: dbsec's `forge-sync` reads them at `v1` | dbsec | dbsec TASK-1131 (was forge TASK-0046) |
 | event0 and oxydraw adopt the foundation files and gates | event0, oxydraw | forge TASK-0047 |
-| `ops init --rust` scaffolds `mise.toml` with the gate tools and `--check` reports pin drift | ops | to be filed in ops (forge TASK-0050) |
-| rust-ci and bump install at the caller's own `mise.toml` pins, opt-in on `v1` | forge | forge TASK-0052 |
+| `ops init --rust` scaffolds `mise.toml` with the gate tools and `--check` reports pin drift | ops | ops TASK-2344 (from forge TASK-0050) |
+| bump installs at the caller's own `mise.toml` pins, opt-in on `v1` (rust-ci already does) | forge | forge TASK-0052 |
 
 Already done: the ops built-ins for check-only fmt, `--locked` and a CI-safe `deps`
 (ops TASK-2322, TASK-2323, TASK-2324), the embedded templates and `ops init --rust`

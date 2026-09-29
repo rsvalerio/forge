@@ -1,14 +1,15 @@
 # The one list of tool versions forge's workflows install, and of the tools forge's
-# gates (`ops verify`, `ops qa`) need locally. Every workflow installs through
+# gates (`ops verify`, `ops qa`) need locally. The workflows install through
 # actions/setup-tools, which reads this file: test-self.yml from its own checkout,
-# rust-ci.yml and bump.yml from the forge checkout at `forge-ref`. So a version is
-# bumped here and CI follows. Locally, `mise install` fetches the same versions; mise
-# resolves them per project, so the shellcheck that actionlint shells out to is found
-# here even on a machine with no global shellcheck default, and the gates run on the ops
-# CI runs.
+# bump.yml from the forge checkout at `forge-ref`. So a version is bumped here and CI
+# follows. rust-ci.yml is the exception: it installs from the caller's own mise.toml,
+# and its test-self fixture keeps these same pins. Locally, `mise install` fetches the
+# same versions; mise resolves them per project, so the shellcheck that actionlint shells
+# out to is found here even on a machine with no global shellcheck default, and the gates
+# run on the ops CI runs.
 #
 # Nothing bumps these automatically; README.md ("Layout") gives the cadence, shared with
-# the mise version actions/setup-tools pins on its jdx/mise-action step.
+# the mise version actions/setup-tools and rust-ci.yml pin on their jdx/mise-action steps.
 
 # Names forge's workflows use for tools mise's registry does not know, or knows by
 # another name. setup-tools installs `ops` through actions/setup-ops (sha256-verified)
@@ -26,16 +27,12 @@ shellcheck = "0.11.0"
 yq = "4.53.6"
 ops = "0.77.0"
 
-# rust-ci.yml (cargo-deny, cargo-machete, cargo-nextest and trivy) and bump.yml's `install-tools` default. cargo-edit publishes no
-# binaries, so mise compiles it; setup-tools' cache keeps that to once per tool set.
+# The Rust gate tools (ops's `qa`, and what rust-ci callers pin in their own mise.toml)
+# and bump.yml's `install-tools` default. cargo-edit publishes no binaries, so mise
+# compiles it; setup-tools' cache keeps that to once per tool set.
 cargo-deny = "0.20.2"
 cargo-machete = "0.9.2"
 cargo-nextest = { version = "0.9.146", version_prefix = "cargo-nextest-" }
 trivy = "0.70.0"
 cocogitto = "7.0.0"
 cargo-edit = "0.13.13"
-
-# actions/setup-rust passes this to mozilla-actions/sccache-action's `version`: that
-# action, not mise, installs sccache on a runner, because it also wires sccache to the
-# Actions cache.
-sccache = "0.18.0"

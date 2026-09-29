@@ -36,7 +36,6 @@ actions/                      # composite actions — step-level, run inside the
   move-major-tag/             #   repoint the moving major tag (v1), never across a major
   setup-ops/                  #   install a pinned, sha256-verified ops release
   setup-tools/                #   install tools at mise.toml's pins: the one install method
-  setup-rust/                 #   toolchain + compile cache + tools, shared by rust-ci's jobs
 .github/workflows/            # reusable workflows — job-level, own runner
   rust-ci.yml                 #   Rust gates, run through ops
   bump.yml                    #   cocogitto version bump, signed commit + tag
@@ -58,16 +57,18 @@ contract](docs/foundation.md#the-gate-contract): `ops verify` (every lint) and `
 (the local shell tests). Run both before you push; test-self runs each as its own check
 under the same name, so their check lists live only in `.ops.toml`. The tools they need,
 ops included, are pinned in `mise.toml` (`mise install`), and so is every other tool a
-forge workflow installs: `actions/setup-tools` is the one way they install anything, and
-it reads only that file (ops through `actions/setup-ops`, at the `ops` pin). So test-self
-lints with the same actionlint, shellcheck and ops you run locally, and `rust-ci` and
-`bump` run the cargo-deny, cocogitto and cargo-edit of the forge ref they are called at.
+forge workflow installs: `actions/setup-tools` is how they install anything, and it reads
+only that file (ops through `actions/setup-ops`, at the `ops` pin). So test-self lints
+with the same actionlint, shellcheck and ops you run locally, and `bump` runs the
+cocogitto and cargo-edit of the forge ref it is called at. `rust-ci` is the exception: it
+installs from the caller's own `mise.toml`, and its fixture's `mise.toml`
+(`ci/fixtures/rust-ci/ops/`) keeps forge's pins.
 
 Those pins move by hand: Dependabot bumps `jdx/mise-action`'s SHA but reads neither
-`mise.toml` nor the mise binary version `actions/setup-tools` passes the action
-(`version:`). Bump them together, in one PR, whenever a Dependabot PR moves
+`mise.toml` nor the mise binary version `actions/setup-tools` and `rust-ci.yml` pass the
+action (`version:`). Bump them together, in one PR, whenever a Dependabot PR moves
 `jdx/mise-action` and at least once a month otherwise: `mise latest <tool>` for each tool
-in `mise.toml` (the newest [ops release](https://github.com/rsvalerio/ops/releases) for
+in `mise.toml` and the rust-ci fixture's (the newest [ops release](https://github.com/rsvalerio/ops/releases) for
 `ops`), and the newest [jdx/mise release](https://github.com/jdx/mise/releases) for
 `version:`. Then `mise install`, `ops verify` and `ops qa` before pushing, so a new actionlint or
 shellcheck check lands together with its fixes.

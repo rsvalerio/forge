@@ -58,8 +58,8 @@ jobs:
       - name: ops qa
         run: ops qa
 
-  # publish-crates.yml shares rust-ci's toolchain step (and its `build-warnings` / `cache`
-  # opt-outs), and its only other caller is forge-testbed on its own triggers, so a
+  # publish-crates.yml installs its toolchain with setup-rust-toolchain (and its
+  # `build-warnings` / `cache` opt-outs), and its only other caller is forge-testbed on its own triggers, so a
   # toolchain-action or cargo change that breaks `cargo publish --dry-run` would merge
   # green here. The fixture is publishable (the rust-ci ones set `publish = false`, which
   # the dry run rejects); dry-run and auth are spelled out rather than left to defaults.
@@ -77,31 +77,17 @@ jobs:
       dry-run: true
       auth: none
 
-  # rust-ci.yml is the most-consumed workflow, and a toolchain-action default can change
-  # what it fails on without any edit here (setup-rust-toolchain v2's
-  # CARGO_BUILD_WARNINGS=deny merged green in #16). ci/fixtures/rust-ci/ops is a crate that
-  # passes every gate rust-ci runs: verify, next and test-doc, deps --check, sec,
-  # and the MSRV job (the fixture declares rust-version and a matching clippy.toml msrv).
-  # `forge-ref` is this run's commit, so the actions and mise.toml under test are this
-  # tree's. The two calls cover actions/setup-rust's three compile-cache modes: `sccache`
-  # and `none` here, `rust-cache` below.
+  # rust-ci.yml is the most-consumed workflow. ci/fixtures/rust-ci/ops is a crate that
+  # passes every gate it runs: verify, next and test-doc, deps --check, sec, and the MSRV
+  # job (the fixture declares rust-version and a matching clippy.toml msrv). Its own
+  # mise.toml is what a caller's looks like, at forge's pins; mise also merges forge's
+  # root mise.toml above it, so this run installs forge's tools too.
   rust-ci:
     name: rust-ci
     uses: ./.github/workflows/rust-ci.yml
     with:
       working-directory: ci/fixtures/rust-ci/ops
-      forge-ref: ${{ github.sha }}
       run-msrv: true
-
-  rust-ci-rust-cache:
-    name: rust-ci without sccache
-    uses: ./.github/workflows/rust-ci.yml
-    with:
-      working-directory: ci/fixtures/rust-ci/ops
-      forge-ref: ${{ github.sha }}
-      use-sccache: false
-      run-deny: false
-      run-sec: false
 
   # setup-ops as an action: mise.toml's ops pin installs through action.yml (the verify
   # and qa jobs reach setup-ops.sh through setup-tools instead; setup-ops-platforms below

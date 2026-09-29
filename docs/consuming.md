@@ -34,12 +34,36 @@ jobs:
 | `ops sec` | Trivy secret and vulnerability scans | `run-sec: false` |
 | `MSRV` | `ops msrv --install` (below) | on only with `run-msrv: true` |
 
+The tools come from **your** `mise.toml`: every job runs `jdx/mise-action`, which
+installs what it pins (cached), the same `mise install` your developers run. It needs at
+least ops and the tools of the jobs you run; pinning `rust` too makes CI use your
+toolchain instead of the runner's stable one:
+
+```toml
+[tool_alias]
+ops = "github:rsvalerio/ops"
+cargo-nextest = "github:nextest-rs/nextest"
+cargo-machete = "github:bnjbvr/cargo-machete"
+
+[tools]
+rust = { version = "1.98.0", components = "rustfmt,clippy" }
+ops = "0.77.0"                  # ops verify
+cargo-nextest = { version = "0.9.146", version_prefix = "cargo-nextest-" }  # ops test
+cargo-deny = "0.20.2"           # ops deps
+cargo-machete = "0.9.2"         # ops deps
+trivy = "0.70.0"                # ops sec
+```
+
+[foundation.md](foundation.md#pipeline-tools) keeps these versions current. mise reads
+`mise.toml` from `working-directory` and every directory above it, so a root `mise.toml`
+serves a workspace in `backend/`.
+
 Each `ops` command is the ops Rust stack's default unless your `.ops.toml` overrides it,
 so tune CI there — for example `[extend.clippy] args = [...]`, or a `next` of your own —
-not through this workflow. `ops verify` is check-only from ops 0.77.0 (forge's `mise.toml`
-pin), so a repo that overrides or extends `verify` must keep it that way: a step that
-rewrites files would pass on the runner instead of failing. The other inputs are `working-directory`, `toolchain`,
-`runs-on`, `use-sccache`, `env-json` (for `ops test`) and `forge-ref`.
+not through this workflow. `ops verify` is check-only from ops 0.77.0, and the verify job
+fails on an older ops, whose `verify` rewrites files and so would pass on the runner. For
+the same reason a repo that overrides or extends `verify` must keep it check-only. The
+other inputs are `working-directory`, `runs-on` and `env-json` (for `ops test`).
 
 What the gates hold a repo to:
 
@@ -51,10 +75,8 @@ What the gates hold a repo to:
   all; override `next` in `.ops.toml` if that is you.
 - **`cargo doc`**: broken intra-doc links fail when the workspace denies them.
 
-The jobs load `actions/setup-rust` from forge at `forge-ref` (default `v1`), which installs
-the toolchain, the compile cache, and ops plus each job's tools at the versions forge's
-`mise.toml` pins — so the ops version CI uses moves with the forge ref you call, not with
-your repo. Your own `mise.toml`, if any, is not read.
+`target/` is cached with `Swatinem/rust-cache` in the jobs that compile. rust-ci loads
+nothing from forge, so it has no `forge-ref`: the `uses:` ref is the whole pin.
 
 ### Moving off the cargo engine
 
@@ -62,27 +84,17 @@ Before forge v0.7.0, rust-ci defaulted to `engine: cargo`: six jobs of raw cargo
 (`Format`, `Check`, `Lint`, `Build`, `Test`, `Deps`) tuned through `cargo-flags`,
 `clippy-args` and `test-args`. That engine, those three inputs and `engine` itself are
 gone (see [versioning.md](versioning.md#rust-ci-runs-on-ops-only)). A caller that still
-passes any of them fails with an unknown-input error, so:
+passes any of them fails with an unknown-input error. The same release moved the tools
+to your own `mise.toml` and removed `toolchain`, `use-sccache` and `forge-ref`. So:
 
-- Drop `engine`, `cargo-flags`, `clippy-args` and `test-args` from the `with:` block, and
-  move what the last three carried into `.ops.toml`.
+- Drop `engine`, `cargo-flags`, `clippy-args`, `test-args`, `toolchain`, `use-sccache` and
+  `forge-ref` from the `with:` block, and move what `cargo-flags`, `clippy-args` and
+  `test-args` carried into `.ops.toml`.
+- Add a `mise.toml` pinning the tools (above). The toolchain moves from `toolchain:` or
+  `rust-toolchain.toml` to its `rust` entry.
 - Update a branch ruleset that requires the old job names to the ones in the table above.
 - Expect the first run to surface what the stricter gates catch (the list above), and fix
   it in the repository.
-
-### Runners that accelerate the Actions cache
-
-`use-sccache: false` is for a runner whose provider proxies the Actions cache to
-something colocated. Blacksmith does that for `actions/cache` and the language
-`setup-*` actions, and documents sccache as one of the two exceptions that still
-reach GitHub's own servers — so on those runners sccache is the one step paying
-full latency while everything around it does not. With the input off the jobs
-drop `RUSTC_WRAPPER` and cache `target/` with `Swatinem/rust-cache`, which is an
-`actions/cache` consumer and so is accelerated like the rest. `ops deps` and `ops sec`
-get neither, because they compile nothing.
-
-Leave it on (the default) for GitHub-hosted runners, where sccache's cache is as
-near as any other.
 
 oxydraw's `frontend` job stays in its own `ci.yml` as a second job alongside the `uses:`
 call — it is Bun/SPA-specific with one consumer.
@@ -725,17 +737,6 @@ through mise — so a workflow at a given forge ref always installs that ref's v
   [docs/foundation.md](foundation.md#pipeline-tools) lists every tool, what needs it and its
   entry. forge's workflows do not read your `mise.toml` on `v1` (forge TASK-0052 tracks an
   opt-in).
-
-## setup-rust
-
-The setup every rust-ci job shares: `setup-rust-toolchain` (with
-`build-warnings: ""` and its own cache off), a compile cache (`compile-cache: sccache`,
-`rust-cache` or `none`), and `setup-tools` for `tools` (default `ops`). sccache is
-installed by `mozilla-actions/sccache-action`, which wires it to the Actions cache, at
-the `sccache` pin in forge's `mise.toml`. It calls
-`setup-tools` from `./.forge`, so load it from a forge checkout at `.forge`.
-
----
 
 ## Shared configuration
 

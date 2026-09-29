@@ -4,6 +4,7 @@ title: 'forge-testbed: go green on ops-only rust-ci and merge its forge-ref: mai
 status: Triage
 assignee: []
 created_date: '2026-09-29 19:01'
+updated_date: '2026-09-29 19:27'
 labels:
   - ci
   - cross-repo
@@ -31,3 +32,9 @@ ordinal: 1000
 - [ ] #1 forge-testbed PR #5 (forge-ref: main) is merged, so its rust-ci call loads main's actions, not v1's
 - [ ] #2 forge-testbed's rust-ci run on forge main is green under the ops jobs (verify-check, test, deps, sec), with any repo-side fixes or an .ops.toml it needs
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-09-29: rust-ci now also installs from the caller's own mise.toml (no forge-ref/toolchain/use-sccache). forge-testbed therefore needs a mise.toml pinning at least ops >= 0.77.0, cargo-nextest, cargo-deny, cargo-machete and trivy (and rust, recommended); see docs/consuming.md 'rust-ci'. forge-testbed#5 (forge-ref: main) becomes moot for rust-ci, since rust-ci no longer loads forge actions; close it or keep it for other workflows.
+<!-- SECTION:NOTES:END -->

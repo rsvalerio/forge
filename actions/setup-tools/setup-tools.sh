@@ -4,8 +4,6 @@
 #
 #   setup-tools.sh plan     validate TOOLS against mise.toml; write step outputs
 #   setup-tools.sh path     after mise installed them: put the tools on PATH, install ops
-#   setup-tools.sh pin NAME print NAME's version from mise.toml, for an installer that
-#                           takes a version rather than going through mise (setup-rust)
 #
 # Configured through the environment (see action.yml for the meaning of each):
 #   TOOLS  FORGE_ROOT  GH_TOKEN  RUNNER_TEMP  GITHUB_OUTPUT  GITHUB_PATH
@@ -103,6 +101,5 @@ put_on_path() {
 case "${1:-}" in
   plan) plan ;;
   path) put_on_path ;;
-  pin) [ $# -eq 2 ] || err "usage: $0 pin NAME"; version_of "$2" ;;
-  *) err "usage: $0 plan|path|pin NAME" ;;
+  *) err "usage: $0 plan|path" ;;
 esac
