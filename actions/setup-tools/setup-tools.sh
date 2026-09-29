@@ -4,6 +4,8 @@
 #
 #   setup-tools.sh plan     validate TOOLS against mise.toml; write step outputs
 #   setup-tools.sh path     after mise installed them: put the tools on PATH, install ops
+#   setup-tools.sh pin NAME print NAME's version from mise.toml, for an installer that
+#                           takes a version rather than going through mise (setup-rust)
 #
 # Configured through the environment (see action.yml for the meaning of each):
 #   TOOLS  FORGE_ROOT  GH_TOKEN  RUNNER_TEMP  GITHUB_OUTPUT  GITHUB_PATH
@@ -28,6 +30,16 @@ pin() {
     }' "$config"
 }
 
+# NAME's pin as a plain version: `"0.75.0"`, possibly followed by a comment, prints
+# 0.75.0. A missing pin, or one written as a table, fails: the caller needs one string.
+version_of() {
+  local value
+  value="$(pin "$1")"
+  [ -n "$value" ] || err "'$1' has no version in forge's mise.toml."
+  [[ "$value" == \"* ]] || err "'$1' is pinned as a table in forge's mise.toml; this needs a plain \"version\"."
+  sed -E 's/^"([^"]*)".*/\1/' <<<"$value"
+}
+
 plan() {
   local entries entry name version ops_version="" mise_tools=()
   # A comma- or whitespace-separated list, newlines included.
@@ -48,8 +60,7 @@ plan() {
       [[ "$version" =~ ^[A-Za-z0-9][A-Za-z0-9._+-]*$ ]] || err "'${entry}' names no version."
     fi
     if [ "$name" = ops ]; then
-      # `"0.75.0"`, possibly followed by a comment: keep what is inside the quotes.
-      ops_version="$(sed -E 's/^"([^"]*)".*/\1/' <<<"$version")"
+      if [ "$entry" = "$name" ]; then ops_version="$(version_of ops)"; else ops_version="$version"; fi
     else
       mise_tools+=("$entry")
     fi
@@ -92,5 +103,6 @@ put_on_path() {
 case "${1:-}" in
   plan) plan ;;
   path) put_on_path ;;
-  *) err "usage: $0 plan|path" ;;
+  pin) [ $# -eq 2 ] || err "usage: $0 pin NAME"; version_of "$2" ;;
+  *) err "usage: $0 plan|path|pin NAME" ;;
 esac

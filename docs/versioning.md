@@ -145,6 +145,13 @@ Pinning tools is not treated as breaking. `rust-ci`'s cargo-deny and `bump`'s co
 cargo-edit used to install unversioned, which on the day they were pinned resolved to the
 versions `mise.toml` now names. Bumping a pin later is an ordinary forge change, reviewed
 like one — a cargo-deny release with a stricter check is exactly the gate tightening above.
+The same holds for sccache: rust-ci's `engine: ops` and MSRV jobs (through
+`setup-rust`) used to take `sccache-action`'s default, the newest sccache release, and now
+pass it the `sccache` pin in `mise.toml`, which on the day it was pinned was that newest
+release. The frozen `engine: cargo` jobs keep the default. A caller's own `mise.toml` is
+not read on `v1`: reading it would change tool versions on an unmodified caller, so it
+can only arrive as an opt-in input (forge TASK-0052).
+
 Two side effects of routing `bump`'s `install-tools` through `setup-tools`, neither of
 which reaches a known caller (`ops`, `dbsec` and `forge-testbed` all use the default list):
 

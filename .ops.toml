@@ -38,12 +38,6 @@ args = ["action-yml"]
 help = "Every action directory has a well-formed action.yml"
 category = "Code Quality"
 
-[commands.lint-config-toml]
-program = "ci/lint.sh"
-args = ["config-toml"]
-help = "Shared configs parse as TOML"
-category = "Code Quality"
-
 [commands.lint-pinned-actions]
 program = "ci/lint.sh"
 args = ["pinned-actions"]
@@ -77,7 +71,6 @@ commands = [
   "lint-shellcheck",
   "lint-executable",
   "lint-action-yml",
-  "lint-config-toml",
   "lint-pinned-actions",
   "lint-yaml",
 ]

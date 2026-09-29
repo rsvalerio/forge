@@ -35,3 +35,8 @@ cargo-nextest = { version = "0.9.146", version_prefix = "cargo-nextest-" }
 trivy = "0.70.0"
 cocogitto = "7.0.0"
 cargo-edit = "0.13.13"
+
+# actions/setup-rust passes this to mozilla-actions/sccache-action's `version`: that
+# action, not mise, installs sccache on a runner, because it also wires sccache to the
+# Actions cache. rust-ci's frozen `engine: cargo` jobs still take its latest release.
+sccache = "0.18.0"

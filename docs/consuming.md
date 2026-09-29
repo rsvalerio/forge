@@ -700,7 +700,15 @@ verified way to get it onto a runner.
   reviewed: set `sha256` to the tarball's hash (from the release's `sha256.sum`) to pin
   that too.
 - **Platforms.** Linux and macOS runners, X64 and ARM64: the four targets ops publishes.
-  Any other runner fails the step rather than guessing an asset name.
+  Any other runner fails the step rather than guessing an asset name. test-self runs
+  setup-ops on X64 and ARM64 Linux and on ARM64 macOS, but **not on X64 (Intel) macOS**:
+  GitHub's last x86_64 macOS images (`macos-15-intel`, `macos-26-intel`) are supported
+  only until August 2027, when x86_64 leaves GitHub Actions, so there is no durable runner
+  to test on. The `macOS/X64` mapping to `x86_64-apple-darwin` was checked by hand against
+  ops 0.75.0 on 2026-09-29 (the asset, its `.sha256` sidecar and the archive layout are
+  the ones setup-ops expects, and the binary is x86_64 Mach-O), but it has never run
+  there. On a self-hosted or legacy Intel Mac, you are the first to run it: check
+  `ops --version` in the job, and report a failure.
 - **`ops --version`** is asserted to report the requested version before the binary is
   installed, so a binary that does not run on the runner never lands on `PATH`.
 - The download uses `gh` with `token` (default `github.token`), which avoids anonymous
@@ -735,12 +743,19 @@ through mise — so a workflow at a given forge ref always installs that ref's v
   install compiles it.
 - `bump.yml`'s `install-tools` goes through it, as do rust-ci's cargo-deny and every
   `engine: ops` job.
+- Your repository's own `mise.toml` is for your laptops: copy into it the entries of the
+  tools your gates run, at forge's pins, so `mise install` gets what CI runs.
+  [docs/foundation.md](foundation.md#pipeline-tools) lists every tool, what needs it and its
+  entry. forge's workflows do not read your `mise.toml` on `v1` (forge TASK-0052 tracks an
+  opt-in).
 
 ## setup-rust
 
 The setup every rust-ci `engine: ops` job shares: `setup-rust-toolchain` (with
 `build-warnings: ""` and its own cache off), a compile cache (`compile-cache: sccache`,
-`rust-cache` or `none`), and `setup-tools` for `tools` (default `ops`). It calls
+`rust-cache` or `none`), and `setup-tools` for `tools` (default `ops`). sccache is
+installed by `mozilla-actions/sccache-action`, which wires it to the Actions cache, at
+the `sccache` pin in forge's `mise.toml`. It calls
 `setup-tools` from `./.forge`, so load it from a forge checkout at `.forge`.
 
 ---
@@ -753,7 +768,5 @@ Scaffold it with `ops init --rust` and keep it current with `ops init --rust --c
 (ops 0.74.0 or later); see [docs/foundation.md](foundation.md) for the gate contract, how
 to adopt the foundation and how updates arrive.
 
-`config/deny.toml`, `config/clippy.toml` and `config/rustfmt.toml` in this repo are
-mirrors of the ops templates, kept only for repos that still vendor them (dbsec's
-`forge-sync`). Do not start vendoring them in a new repo, and change the templates in ops
-rather than here.
+forge no longer carries copies of these files: its `config/*.toml` mirrors were deleted
+(forge TASK-0048). Change the templates in ops.
