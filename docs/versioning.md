@@ -129,7 +129,7 @@ adding a new workflow or action, or clarifying documentation.
 `rust-ci` was rebuilt on ops gates in v0.6.0 behind an opt-in `engine: ops`, with the
 original cargo jobs as the default, because the ops gates can turn a green consumer red:
 clippy and build gain `--all-targets`, every cargo command gains `--locked`, tests run
-under nextest with a separate doctest step, and `ops verify-check` and `ops sec` add gates
+under nextest with a separate doctest step, and `ops verify` and `ops sec` add gates
 the cargo jobs never had.
 
 v0.7.0 drops the cargo engine instead of waiting for a `v2`, **on `v1`**, by the owner's

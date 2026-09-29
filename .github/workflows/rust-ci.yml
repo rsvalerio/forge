@@ -1,6 +1,6 @@
 name: Rust CI
 
-# Shared Rust gates, run through ops (docs/consuming.md, "rust-ci"): `ops verify-check`,
+# Shared Rust gates, run through ops (docs/consuming.md, "rust-ci"): `ops verify`,
 # `ops next` + `ops test-doc`, `ops deps --check` and `ops sec`, so CI runs the commands
 # a developer runs, with the flags from the ops Rust stack plus the caller's `.ops.toml`.
 # Every job shares one setup, actions/setup-rust. `run-msrv` adds an MSRV job.
@@ -140,9 +140,10 @@ jobs:
 
   # The static gate: fmt-check, the whitespace and end-of-file checks, clippy
   # (--all-targets, so test code is linted), build, the JSON/YAML parse checks and doc.
-  # `verify-check` is `verify` with every rewriter swapped for its check-only twin.
-  ops-verify:
-    name: ops verify-check
+  # `verify` is check-only from ops 0.77.0 (`verify-fix` is the rewriting form), so it
+  # fails on a dirty tree instead of repairing it on the runner.
+  verify:
+    name: ops verify
     runs-on: ${{ inputs.runs-on }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -164,9 +165,9 @@ jobs:
           tools: ops
       - name: Keep forge out of the gate
         run: echo '/.forge/' >>.git/info/exclude
-      - name: ops verify-check
+      - name: ops verify
         working-directory: ${{ inputs.working-directory }}
-        run: ops verify-check
+        run: ops verify
 
   # nextest for the tests, `ops test-doc` for the doctests nextest does not run.
   ops-test:

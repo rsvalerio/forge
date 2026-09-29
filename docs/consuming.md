@@ -28,7 +28,7 @@ jobs:
 
 | Job | Runs | Input that turns it off |
 |---|---|---|
-| `ops verify-check` | fmt-check, whitespace and end-of-file checks, clippy, build, JSON/YAML parse checks, doc | — |
+| `ops verify` | fmt-check, whitespace and end-of-file checks, clippy, build, JSON/YAML parse checks, doc | — |
 | `ops test` | `ops next` (nextest), then `ops test-doc` (doctests, which nextest skips) | `run-tests: false` |
 | `ops deps` | `ops deps --check`: cargo-deny, and cargo-machete's unused-dependency warning | `run-deny: false` |
 | `ops sec` | Trivy secret and vulnerability scans | `run-sec: false` |
@@ -36,7 +36,9 @@ jobs:
 
 Each `ops` command is the ops Rust stack's default unless your `.ops.toml` overrides it,
 so tune CI there — for example `[extend.clippy] args = [...]`, or a `next` of your own —
-not through this workflow. The other inputs are `working-directory`, `toolchain`,
+not through this workflow. `ops verify` is check-only from ops 0.77.0 (forge's `mise.toml`
+pin), so a repo that overrides or extends `verify` must keep it that way: a step that
+rewrites files would pass on the runner instead of failing. The other inputs are `working-directory`, `toolchain`,
 `runs-on`, `use-sccache`, `env-json` (for `ops test`) and `forge-ref`.
 
 What the gates hold a repo to:

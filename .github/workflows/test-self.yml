@@ -80,7 +80,7 @@ jobs:
   # rust-ci.yml is the most-consumed workflow, and a toolchain-action default can change
   # what it fails on without any edit here (setup-rust-toolchain v2's
   # CARGO_BUILD_WARNINGS=deny merged green in #16). ci/fixtures/rust-ci/ops is a crate that
-  # passes every gate rust-ci runs: verify-check, next and test-doc, deps --check, sec,
+  # passes every gate rust-ci runs: verify, next and test-doc, deps --check, sec,
   # and the MSRV job (the fixture declares rust-version and a matching clippy.toml msrv).
   # `forge-ref` is this run's commit, so the actions and mise.toml under test are this
   # tree's. The two calls cover actions/setup-rust's three compile-cache modes: `sccache`

@@ -24,7 +24,7 @@ cargo-edit = "cargo:cargo-edit"
 actionlint = "1.7.12"
 shellcheck = "0.11.0"
 yq = "4.53.6"
-ops = "0.75.0"
+ops = "0.77.0"
 
 # rust-ci.yml (cargo-deny, cargo-machete, cargo-nextest and trivy) and bump.yml's `install-tools` default. cargo-edit publishes no
 # binaries, so mise compiles it; setup-tools' cache keeps that to once per tool set.

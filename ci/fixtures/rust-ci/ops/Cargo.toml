@@ -1,5 +1,5 @@
 # test-self fixture for rust-ci.yml: a crate that passes every ops gate
-# rust-ci runs — verify-check, next, test-doc, deps --check, sec and msrv. Not published,
+# rust-ci runs — verify, next, test-doc, deps --check, sec and msrv. Not published,
 # not part of any other workspace.
 [package]
 name = "forge-fixture-ops"

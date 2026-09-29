@@ -41,9 +41,9 @@ Every Rust repo exposes two gates, and they mean the same thing in every repo:
 | `verify` | The fast static gate: fmt, clippy, build, doc (plus the whitespace, JSON and YAML checks) | The pre-commit hook, code-review wave runners, developers before a push |
 | `qa` | The full gate: deps, tests (including doctests) and security | Developers before a release, CI |
 
-**CI runs both, in check-only mode.** `verify` rewrites files (fmt, whitespace fixers), so
-CI runs `ops verify-check`, which swaps each rewriter for its check and writes nothing. CI
-also sets `OPS__CARGO__LOCKED=true`, so every cargo command builds against the committed
+**CI runs both, in check-only mode.** From ops 0.77.0 `verify` is check-only: it runs the
+check form of fmt and the whitespace fixers and writes nothing, and `verify-fix` is the
+rewriting form for developers. So CI runs `ops verify` itself. CI also sets `OPS__CARGO__LOCKED=true`, so every cargo command builds against the committed
 `Cargo.lock`. forge's `rust-ci.yml` does exactly this (see
 [consuming.md](consuming.md#rust-ci)).
 
@@ -86,7 +86,7 @@ duplicated in `mise.toml`.
 
 | Tool | Needed by | `mise.toml` entry (forge's pin) |
 |---|---|---|
-| ops | every gate; every rust-ci job | `ops = "0.75.0"`, with `[tool_alias] ops = "github:rsvalerio/ops"` |
+| ops | every gate; every rust-ci job | `ops = "0.77.0"`, with `[tool_alias] ops = "github:rsvalerio/ops"` |
 | cargo-deny | `ops deps`; rust-ci `ops deps` | `cargo-deny = "0.20.2"` (aqua) |
 | cargo-machete | `ops deps` (a warning: it is heuristic); rust-ci `ops deps` | `cargo-machete = "0.9.2"`, with `[tool_alias] cargo-machete = "github:bnjbvr/cargo-machete"` |
 | cargo-nextest | `ops next`; rust-ci `ops test` | `cargo-nextest = { version = "0.9.146", version_prefix = "cargo-nextest-" }`, with `[tool_alias] cargo-nextest = "github:nextest-rs/nextest"` |
