@@ -1,4 +1,4 @@
-//! rust-ci.yml fixture for `engine: ops`: one unit test for nextest and one doctest for
+//! rust-ci.yml fixture: one unit test for nextest and one doctest for
 //! `ops test-doc`, since nextest does not run doctests.
 
 /// The answer.

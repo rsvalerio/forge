@@ -36,9 +36,9 @@ actions/                      # composite actions — step-level, run inside the
   move-major-tag/             #   repoint the moving major tag (v1), never across a major
   setup-ops/                  #   install a pinned, sha256-verified ops release
   setup-tools/                #   install tools at mise.toml's pins: the one install method
-  setup-rust/                 #   toolchain + compile cache + tools, shared by rust-ci's ops jobs
+  setup-rust/                 #   toolchain + compile cache + tools, shared by rust-ci's jobs
 .github/workflows/            # reusable workflows — job-level, own runner
-  rust-ci.yml                 #   Rust gates: cargo jobs, or ops gates with `engine: ops`
+  rust-ci.yml                 #   Rust gates, run through ops
   bump.yml                    #   cocogitto version bump, signed commit + tag
   publish-homebrew.yml
   publish-deb.yml             #   build a .deb with the consumer's command, then apt-pool-push
@@ -46,7 +46,7 @@ actions/                      # composite actions — step-level, run inside the
   publish-crates.yml          #   real publish is a per-crate opt-in (PLAN.md §5)
   test-self.yml               #   forge's own CI
 ci/lint.sh                    # static checks that `ops verify` runs
-ci/fixtures/rust-ci/          # crates test-self runs rust-ci.yml against
+ci/fixtures/rust-ci/ops/      # the crate test-self runs rust-ci.yml against
 templates/                    # SECURITY, CONTRIBUTING, CODE_OF_CONDUCT, issue + PR templates
 docs/                         # foundation.md: the gate contract and shared Rust config (from ops)
 mise.toml                     # every tool version: forge's workflows, and the local gates
@@ -129,7 +129,7 @@ the templates and the docs. The shared Rust configs moved to ops's foundation te
 | Workflow | Callers |
 |---|---|
 | `bump.yml` | `ops@v1`, `dbsec@v1`, `forge-testbed@main` |
-| `rust-ci.yml` | `dbsec@v1`, `forge-testbed@main` (`ops` still runs its own `ci.yml`) |
+| `rust-ci.yml` | `dbsec@v1`, `ops@v1`, `forge-testbed@main` |
 | `publish-crates.yml` | `dbsec@v1` (real publish behind a manual opt-in), `forge-testbed@main` |
 | `publish-deb-dist.yml` | `ops@v1` |
 | `publish-deb.yml`, `publish-homebrew.yml` | `forge-testbed@main` only |

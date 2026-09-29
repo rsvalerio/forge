@@ -58,31 +58,6 @@ jobs:
       - name: ops qa
         run: ops qa
 
-  # rust-ci.yml is the most-consumed workflow, and a toolchain-action default can change
-  # what it fails on without any edit here (setup-rust-toolchain v2's
-  # CARGO_BUILD_WARNINGS=deny merged green in #16). Two tiny fixture crates under
-  # ci/fixtures/rust-ci pin the warnings policy: a warning-free crate must pass under the
-  # default `clippy-args: -D warnings`, and a crate with one deliberate rustc warning must
-  # pass every job once the caller drops `-D warnings`, because clippy-args is the only
-  # place that policy lives. The two calls also cover both caching modes. The clean call
-  # also runs the deps job, whose cargo-deny comes from actions/setup-tools; `forge-ref`
-  # is this run's commit, so the actions and mise.toml under test are this tree's.
-  rust-ci-clean:
-    name: rust-ci on a warning-free crate
-    uses: ./.github/workflows/rust-ci.yml
-    with:
-      working-directory: ci/fixtures/rust-ci/clean
-      forge-ref: ${{ github.sha }}
-
-  rust-ci-warning:
-    name: rust-ci on a crate with a warning
-    uses: ./.github/workflows/rust-ci.yml
-    with:
-      working-directory: ci/fixtures/rust-ci/warning
-      clippy-args: ""
-      run-deny: false
-      use-sccache: false
-
   # publish-crates.yml shares rust-ci's toolchain step (and its `build-warnings` / `cache`
   # opt-outs), and its only other caller is forge-testbed on its own triggers, so a
   # toolchain-action or cargo change that breaks `cargo publish --dry-run` would merge
@@ -102,18 +77,31 @@ jobs:
       dry-run: true
       auth: none
 
-  # `engine: ops` against a crate that passes every gate it runs: verify-check, next and
-  # test-doc, deps --check, sec, and the MSRV job (the fixture declares rust-version and a
-  # matching clippy.toml msrv). Its jobs cover actions/setup-rust's `sccache` and `none`
-  # compile-cache modes.
-  rust-ci-ops:
-    name: rust-ci engine ops
+  # rust-ci.yml is the most-consumed workflow, and a toolchain-action default can change
+  # what it fails on without any edit here (setup-rust-toolchain v2's
+  # CARGO_BUILD_WARNINGS=deny merged green in #16). ci/fixtures/rust-ci/ops is a crate that
+  # passes every gate rust-ci runs: verify-check, next and test-doc, deps --check, sec,
+  # and the MSRV job (the fixture declares rust-version and a matching clippy.toml msrv).
+  # `forge-ref` is this run's commit, so the actions and mise.toml under test are this
+  # tree's. The two calls cover actions/setup-rust's three compile-cache modes: `sccache`
+  # and `none` here, `rust-cache` below.
+  rust-ci:
+    name: rust-ci
     uses: ./.github/workflows/rust-ci.yml
     with:
-      engine: ops
       working-directory: ci/fixtures/rust-ci/ops
       forge-ref: ${{ github.sha }}
       run-msrv: true
+
+  rust-ci-rust-cache:
+    name: rust-ci without sccache
+    uses: ./.github/workflows/rust-ci.yml
+    with:
+      working-directory: ci/fixtures/rust-ci/ops
+      forge-ref: ${{ github.sha }}
+      use-sccache: false
+      run-deny: false
+      run-sec: false
 
   # setup-ops as an action: mise.toml's ops pin installs through action.yml (the verify
   # and qa jobs reach setup-ops.sh through setup-tools instead; setup-ops-platforms below

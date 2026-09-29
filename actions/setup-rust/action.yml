@@ -1,12 +1,11 @@
 name: setup rust
 description: >-
-  The setup every rust-ci.yml `engine: ops` job shares: a Rust toolchain, a compile cache
+  The setup every rust-ci.yml job shares: a Rust toolchain, a compile cache
   (sccache at forge's mise.toml pin, or Swatinem/rust-cache), and ops plus any other tools
   at the versions forge's mise.toml pins (via setup-tools). Load it from the forge checkout
   at `.forge`.
 
-# One copy of what the per-job blocks in rust-ci.yml's `engine: cargo` jobs repeat six
-# times. It calls setup-tools as `./.forge/actions/setup-tools`: a composite action cannot
+# It calls setup-tools as `./.forge/actions/setup-tools`: a composite action cannot
 # `uses:` a path relative to itself, so this action only works where forge is checked out
 # at `.forge` — which is how every forge reusable workflow loads its actions (see
 # docs/versioning.md). The toolchain step's `build-warnings: ""` and `cache: false` are

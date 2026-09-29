@@ -26,8 +26,7 @@ shellcheck = "0.11.0"
 yq = "4.53.6"
 ops = "0.75.0"
 
-# rust-ci.yml (cargo-deny in both engines; cargo-machete, cargo-nextest and trivy for
-# `engine: ops`) and bump.yml's `install-tools` default. cargo-edit publishes no
+# rust-ci.yml (cargo-deny, cargo-machete, cargo-nextest and trivy) and bump.yml's `install-tools` default. cargo-edit publishes no
 # binaries, so mise compiles it; setup-tools' cache keeps that to once per tool set.
 cargo-deny = "0.20.2"
 cargo-machete = "0.9.2"
@@ -38,5 +37,5 @@ cargo-edit = "0.13.13"
 
 # actions/setup-rust passes this to mozilla-actions/sccache-action's `version`: that
 # action, not mise, installs sccache on a runner, because it also wires sccache to the
-# Actions cache. rust-ci's frozen `engine: cargo` jobs still take its latest release.
+# Actions cache.
 sccache = "0.18.0"

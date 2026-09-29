@@ -44,9 +44,8 @@ Every Rust repo exposes two gates, and they mean the same thing in every repo:
 **CI runs both, in check-only mode.** `verify` rewrites files (fmt, whitespace fixers), so
 CI runs `ops verify-check`, which swaps each rewriter for its check and writes nothing. CI
 also sets `OPS__CARGO__LOCKED=true`, so every cargo command builds against the committed
-`Cargo.lock`. forge's `rust-ci.yml` does exactly this with `engine: ops`, which is opt-in
-on v1; its default engine still runs raw cargo steps until the next major flips it (see
-[consuming.md](consuming.md#engine-ops)).
+`Cargo.lock`. forge's `rust-ci.yml` does exactly this (see
+[consuming.md](consuming.md#rust-ci)).
 
 `ops explain verify` and `ops explain qa` print exactly what each gate runs in a given repo.
 A repo that needs more adds to a gate with `[extend.verify]` or `[extend.qa]` rather than
@@ -87,8 +86,8 @@ duplicated in `mise.toml`.
 
 | Tool | Needed by | `mise.toml` entry (forge's pin) |
 |---|---|---|
-| ops | every gate; rust-ci `engine: ops` and MSRV jobs | `ops = "0.75.0"`, with `[tool_alias] ops = "github:rsvalerio/ops"` |
-| cargo-deny | `ops deps`; rust-ci's deps jobs (both engines) | `cargo-deny = "0.20.2"` (aqua) |
+| ops | every gate; every rust-ci job | `ops = "0.75.0"`, with `[tool_alias] ops = "github:rsvalerio/ops"` |
+| cargo-deny | `ops deps`; rust-ci `ops deps` | `cargo-deny = "0.20.2"` (aqua) |
 | cargo-machete | `ops deps` (a warning: it is heuristic); rust-ci `ops deps` | `cargo-machete = "0.9.2"`, with `[tool_alias] cargo-machete = "github:bnjbvr/cargo-machete"` |
 | cargo-nextest | `ops next`; rust-ci `ops test` | `cargo-nextest = { version = "0.9.146", version_prefix = "cargo-nextest-" }`, with `[tool_alias] cargo-nextest = "github:nextest-rs/nextest"` |
 | cargo-edit (`cargo upgrade`, `cargo set-version`) | `ops deps` without `--check`; bump.yml | `cargo-edit = "0.13.13"`, with `[tool_alias] cargo-edit = "cargo:cargo-edit"` (compiled: no release binaries) |
@@ -138,8 +137,7 @@ was made. Each took the option that changes nothing for an unmodified caller:
 Two tools are pinned in `mise.toml` but installed on CI by something else. sccache comes
 from `mozilla-actions/sccache-action`, which also hands sccache the Actions cache
 credentials that only a JavaScript action can read; setup-rust passes it the `mise.toml`
-pin. rust-ci's frozen `engine: cargo` jobs still take the action's default, the latest
-sccache release, until the default engine flips. The Rust toolchain comes from
+pin. The Rust toolchain comes from
 `setup-rust-toolchain` on CI and rustup locally, both reading the repo's toolchain.
 
 ## Adopting the foundation
@@ -156,7 +154,7 @@ In a Rust repo, with ops 0.74.0 or later:
    `pre-release`) becomes an `[extend.*]` of one of them, or is removed. Git hook commands
    (ops's `run-before-commit` and `run-before-push`) compose `verify` and `qa` rather than
    listing checks of their own.
-5. Call forge's `rust-ci.yml` with `engine: ops` for CI, so CI runs the same gates.
+5. Call forge's `rust-ci.yml` for CI, so CI runs the same gates.
 
 ## Updating
 

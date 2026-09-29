@@ -10,7 +10,8 @@ Pin a **tag**, never `main` — see [versioning.md](versioning.md) for why.
 
 ## rust-ci
 
-`.github/workflows/ci.yml` in the consumer:
+`rust-ci` runs the gate contract through [ops](https://github.com/rsvalerio/ops), so CI
+runs what a developer runs locally. `.github/workflows/ci.yml` in the consumer:
 
 ```yaml
 name: CI
@@ -25,15 +26,47 @@ jobs:
     uses: rsvalerio/forge/.github/workflows/rust-ci.yml@v1
 ```
 
-Per-repo variants. `dbsec` calls `rust-ci.yml` today; `ops` still runs its own `ci.yml`,
-so its row is the wrapper it would need, not one it has:
+| Job | Runs | Input that turns it off |
+|---|---|---|
+| `ops verify-check` | fmt-check, whitespace and end-of-file checks, clippy, build, JSON/YAML parse checks, doc | — |
+| `ops test` | `ops next` (nextest), then `ops test-doc` (doctests, which nextest skips) | `run-tests: false` |
+| `ops deps` | `ops deps --check`: cargo-deny, and cargo-machete's unused-dependency warning | `run-deny: false` |
+| `ops sec` | Trivy secret and vulnerability scans | `run-sec: false` |
+| `MSRV` | `ops msrv --install` (below) | on only with `run-msrv: true` |
 
-| Repo | Wrapper inputs |
-|---|---|
-| `ops` (not adopted) | `test-args: --ignored`, `env-json: '{"OPS_LOG_LEVEL":"debug"}'` |
-| `oxydraw` | `working-directory: backend` (its Cargo workspace is not at the root) |
-| `event0` | defaults; expect a backlog of failures on the first run |
-| `dbsec` | `runs-on: blacksmith-4vcpu-ubuntu-2404`, `use-sccache: false`, `run-tests: false` |
+Each `ops` command is the ops Rust stack's default unless your `.ops.toml` overrides it,
+so tune CI there — for example `[extend.clippy] args = [...]`, or a `next` of your own —
+not through this workflow. The other inputs are `working-directory`, `toolchain`,
+`runs-on`, `use-sccache`, `env-json` (for `ops test`) and `forge-ref`.
+
+What the gates hold a repo to:
+
+- **`--all-targets`**: clippy and build also cover tests, benches and examples, so lints
+  in test code fail the gate.
+- **`--locked`**: every cargo command builds against the committed `Cargo.lock`
+  (`OPS__CARGO__LOCKED=true`). A repo without one, or with a stale one, fails.
+- **nextest** plus a separate doctest step. nextest fails a workspace with no tests at
+  all; override `next` in `.ops.toml` if that is you.
+- **`cargo doc`**: broken intra-doc links fail when the workspace denies them.
+
+The jobs load `actions/setup-rust` from forge at `forge-ref` (default `v1`), which installs
+the toolchain, the compile cache, and ops plus each job's tools at the versions forge's
+`mise.toml` pins — so the ops version CI uses moves with the forge ref you call, not with
+your repo. Your own `mise.toml`, if any, is not read.
+
+### Moving off the cargo engine
+
+Before forge v0.7.0, rust-ci defaulted to `engine: cargo`: six jobs of raw cargo commands
+(`Format`, `Check`, `Lint`, `Build`, `Test`, `Deps`) tuned through `cargo-flags`,
+`clippy-args` and `test-args`. That engine, those three inputs and `engine` itself are
+gone (see [versioning.md](versioning.md#rust-ci-runs-on-ops-only)). A caller that still
+passes any of them fails with an unknown-input error, so:
+
+- Drop `engine`, `cargo-flags`, `clippy-args` and `test-args` from the `with:` block, and
+  move what the last three carried into `.ops.toml`.
+- Update a branch ruleset that requires the old job names to the ones in the table above.
+- Expect the first run to surface what the stricter gates catch (the list above), and fix
+  it in the repository.
 
 ### Runners that accelerate the Actions cache
 
@@ -43,8 +76,8 @@ something colocated. Blacksmith does that for `actions/cache` and the language
 reach GitHub's own servers — so on those runners sccache is the one step paying
 full latency while everything around it does not. With the input off the jobs
 drop `RUSTC_WRAPPER` and cache `target/` with `Swatinem/rust-cache`, which is an
-`actions/cache` consumer and so is accelerated like the rest. `fmt` gets neither,
-because it compiles nothing.
+`actions/cache` consumer and so is accelerated like the rest. `ops deps` and `ops sec`
+get neither, because they compile nothing.
 
 Leave it on (the default) for GitHub-hosted runners, where sccache's cache is as
 near as any other.
@@ -52,67 +85,9 @@ near as any other.
 oxydraw's `frontend` job stays in its own `ci.yml` as a second job alongside the `uses:`
 call — it is Bun/SPA-specific with one consumer.
 
-### Two behaviour changes on adoption
-
-- **`cargo fmt --all --check`.** ops ran `cargo fmt --all` with no `--check`, which
-  reformats the tree on the runner and always passes. Expect ops to fail this gate once,
-  and fix it with one formatting commit.
-- **`event0` has never had CI.** Its first run will surface pre-existing lint and test
-  failures. That is a backlog, not a migration bug. Adopt it last.
-
-### `engine: ops`
-
-`engine: ops` runs the gate contract through [ops](https://github.com/rsvalerio/ops)
-instead of cargo commands, so CI runs what a developer runs locally:
-
-```yaml
-jobs:
-  rust:
-    uses: rsvalerio/forge/.github/workflows/rust-ci.yml@v1
-    with:
-      engine: ops
-```
-
-| Job | Runs | Input that turns it off |
-|---|---|---|
-| `ops verify-check` | fmt-check, whitespace and end-of-file checks, clippy, build, JSON/YAML parse checks, doc | — |
-| `ops test` | `ops next` (nextest), then `ops test-doc` (doctests, which nextest skips) | `run-tests: false` |
-| `ops deps` | `ops deps --check`: cargo-deny, and cargo-machete's unused-dependency warning | `run-deny: false` |
-| `ops sec` | Trivy secret and vulnerability scans | `run-sec: false` |
-
-The job names differ from `engine: cargo`'s (`Format`, `Lint`, `Test`, ...), so a branch
-ruleset that requires those checks needs its list updated when you switch.
-
-Each `ops` command is the ops Rust stack's default unless your `.ops.toml` overrides it,
-so tune CI there — for example `[extend.clippy] args = [...]`, or a `next` of your own —
-not through this workflow. `cargo-flags`, `clippy-args` and `test-args` are deprecated:
-they do nothing under `engine: ops`, and the `ops verify-check` job warns when one is
-set.
-`working-directory`, `toolchain`, `runs-on`, `use-sccache` and `env-json` (for
-`ops test`) work as before.
-
-It is **opt-in on v1**; the default stays `cargo` until the next major, where it flips
-(see [versioning.md](versioning.md#rust-ci-engine-ops)). Expect these differences from
-`engine: cargo` on the first run:
-
-- **`--all-targets`**: clippy and build also cover tests, benches and examples, so lints
-  in test code now fail the gate.
-- **`--locked`**: every cargo command builds against the committed `Cargo.lock`
-  (`OPS__CARGO__LOCKED=true`). A repo without one, or with a stale one, fails.
-- **nextest** instead of `cargo test`, plus a separate doctest step. nextest fails a
-  workspace with no tests at all; override `next` in `.ops.toml` if that is you.
-- **New gates**: whitespace and end-of-file checks, the JSON/YAML parse checks, `cargo
-  doc` (broken intra-doc links fail when the workspace denies them), and `ops sec`.
-- **No `check` job**: `build --all-targets` covers it.
-
-The jobs load `actions/setup-rust` from forge at `forge-ref` (default `v1`), which installs
-the toolchain, the compile cache, and ops plus each job's tools at the versions forge's
-`mise.toml` pins — so the ops version CI uses moves with the forge ref you call, not with
-your repo. Your own `mise.toml`, if any, is not read.
-
 ### MSRV
 
-`run-msrv: true` (either engine) adds an **MSRV** job running `ops msrv --install`: it
+`run-msrv: true` adds an **MSRV** job running `ops msrv --install`: it
 reads `rust-version` from `Cargo.toml` (`[workspace.package]`, else `[package]`), fails
 unless `clippy.toml`'s `msrv` equals it, installs exactly that toolchain and runs
 `cargo check --workspace --all-features --all-targets` on it. It catches what clippy's
@@ -741,8 +716,8 @@ through mise — so a workflow at a given forge ref always installs that ref's v
   its own steps. The job keeps the tools' `PATH` entries, and mise itself.
 - Installs are cached per tool set. `cargo-edit` has no release binaries, so its first
   install compiles it.
-- `bump.yml`'s `install-tools` goes through it, as do rust-ci's cargo-deny and every
-  `engine: ops` job.
+- `bump.yml`'s `install-tools` goes through it, as does every rust-ci
+  job.
 - Your repository's own `mise.toml` is for your laptops: copy into it the entries of the
   tools your gates run, at forge's pins, so `mise install` gets what CI runs.
   [docs/foundation.md](foundation.md#pipeline-tools) lists every tool, what needs it and its
@@ -751,7 +726,7 @@ through mise — so a workflow at a given forge ref always installs that ref's v
 
 ## setup-rust
 
-The setup every rust-ci `engine: ops` job shares: `setup-rust-toolchain` (with
+The setup every rust-ci job shares: `setup-rust-toolchain` (with
 `build-warnings: ""` and its own cache off), a compile cache (`compile-cache: sccache`,
 `rust-cache` or `none`), and `setup-tools` for `tools` (default `ops`). sccache is
 installed by `mozilla-actions/sccache-action`, which wires it to the Actions cache, at
