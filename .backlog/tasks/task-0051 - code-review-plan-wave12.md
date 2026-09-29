@@ -1,10 +1,10 @@
 ---
 id: TASK-0051
 title: 'code-review-plan-wave12'
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-09-29 13:37'
-updated_date: '2026-09-29 13:37'
+updated_date: '2026-09-29 16:12'
 labels:
   - code-review-wave
 dependencies:
@@ -45,4 +45,7 @@ CI tool installation: TASK-0050 moves every pipeline tool to mise and decides wh
 
 <!-- SECTION:NOTES:BEGIN -->
 Overlaps: none
+
+Run 2026-09-29 on chore/todo-wave12. TASK-0049 Done. TASK-0050 In Progress: AC#1-3 met, AC#4 needs the owner to file the ops follow-up (text in TASK-0050 notes). TASK-0048 In Progress: AC#1 met (mirrors deleted), AC#2 blocked on dbsec TASK-1131; v1 must not move past the deletion until then. New Triage task TASK-0052 (opt-in consumer mise.toml pins) came out of TASK-0050 design point 1. Close this wave when TASK-0050 and TASK-0048 are Done.
+
 <!-- SECTION:NOTES:END -->
