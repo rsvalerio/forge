@@ -116,6 +116,17 @@ on:
         type: string
         required: false
         default: cargo-edit,cocogitto
+      rust-toolchain:
+        description: >-
+          Rust toolchain installed before `install-tools`, so `cargo` is on PATH. Both
+          default tools need it: mise compiles `cargo-edit` with `cargo install` (it has no
+          release binaries), and a Rust consumer's cog `pre_bump_hooks` run
+          `cargo set-version`. ubuntu-latest ships cargo on PATH and hides its absence; a
+          self-hosted runner whose job PATH lacks `~/.cargo/bin` fails the install in
+          milliseconds. Empty skips it, for a consumer whose tools and hooks need no Rust.
+        type: string
+        required: false
+        default: stable
       runs-on:
         description: >-
           Runner label. The publish workflows default to ubuntu-22.04 instead; see
@@ -189,6 +200,16 @@ jobs:
         with:
           token: ${{ steps.app-token.outputs.token }}
           app-slug: ${{ steps.app-token.outputs.app-slug }}
+
+      # Before setup-tools: its `cargo:` installs and the caller's cog hooks both call cargo.
+      # `cache: false` and `build-warnings: ""` for the reasons in rust-ci.yml's header.
+      - name: Install Rust ${{ inputs.rust-toolchain }}
+        if: inputs.rust-toolchain != ''
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        with:
+          toolchain: ${{ inputs.rust-toolchain }}
+          build-warnings: ""
+          cache: false
 
       # At the versions forge's mise.toml pins, the one list every forge workflow installs
       # from, so a bump never runs a cocogitto or cargo-edit that changed since the last one.
