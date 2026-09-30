@@ -1,4 +1,0 @@
-# rust-ci's deps job runs `cargo deny check` here. The fixture has no dependencies, and it
-# is unpublished, so it needs no license of its own.
-[licenses]
-private = { ignore = true }

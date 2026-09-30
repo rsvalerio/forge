@@ -31,12 +31,12 @@ with:
 
 The reusable workflows check forge out at `forge-ref` to load their composite actions
 (see below), and that input **defaults to `v1`**. Pinning only the `uses:` ref leaves
-`mint-app-token`, `app-bot-identity`, `signed-commit`, `move-major-tag`, `setup-tools` and
-`setup-rust` floating on `v1` — and with `setup-tools`, the tool versions in forge's
-`mise.toml` too. That is exactly what happened in `ops`: it pinned `@v0.2.0` for weeks
+`mint-app-token`, `app-bot-identity`, `signed-commit`, `move-major-tag` and `setup-tools`
+floating on `v1` — and with `setup-tools`, the tool versions in forge's `mise.toml`
+too. That is exactly what happened in `ops`: it pinned `@v0.2.0` for weeks
 while running v0.1.2's actions, including on the job that receives `GH_APP_PRIVATE_KEY`.
-Set both refs, or neither. `rust-ci` takes `forge-ref` too: its deps job and every
-`engine: ops` job load `setup-tools` this way.
+Set both refs, or neither. `rust-ci` has no `forge-ref`: it loads nothing from forge, so
+its `uses:` ref is the whole pin.
 
 ## The one exception: forge-testbed floats on `main`
 
@@ -75,8 +75,8 @@ The way out is to make the *path* static and the *ref* dynamic:
 This checkout must come **after** the consumer's own checkout, which cleans the workspace
 root and would otherwise delete `.forge`.
 
-This step is the single pattern: `bump`, `publish-deb`, `publish-deb-dist`,
-`publish-homebrew` and `rust-ci` each carry an identical `Check out forge` step, and a new reusable
+This step is the single pattern: `bump`, `publish-deb`, `publish-deb-dist` and
+`publish-homebrew` each carry an identical `Check out forge` step, and a new reusable
 workflow that needs a composite action copies it verbatim. It cannot be shared any further.
 A composite action that did the checkout would itself have to be loaded from `.forge`, and
 a reusable workflow cannot contribute steps to another job.
@@ -124,33 +124,40 @@ Requiring a major bump:
 Not breaking: adding an optional input with a default that preserves current behaviour,
 adding a new workflow or action, or clarifying documentation.
 
-## rust-ci `engine: ops`
+## rust-ci runs on ops only
 
-Rebuilding `rust-ci` on ops gates changes what it runs: clippy and build gain
-`--all-targets`, every cargo command gains `--locked`, tests run under nextest with a
-separate doctest step, and `ops verify-check` and `ops sec` add gates `engine: cargo` never
-had (consuming.md lists them). Each of those can turn a green consumer red, which makes it
-a breaking change by the rules above. So on `v1` it ships **opt-in**:
+`rust-ci` was rebuilt on ops gates in v0.6.0 behind an opt-in `engine: ops`, with the
+original cargo jobs as the default, because the ops gates can turn a green consumer red:
+clippy and build gain `--all-targets`, every cargo command gains `--locked`, tests run
+under nextest with a separate doctest step, and `ops verify` and `ops sec` add gates
+the cargo jobs never had.
 
-- `engine` defaults to `cargo`, which runs exactly what it ran before. Adding `engine`,
-  `run-sec` (which only `engine: ops` reads) and `run-msrv` (default off) is the "optional
-  input with a default that preserves current behaviour" case.
-- Consumers opt in one at a time — `dbsec` and `forge-testbed` first — by passing
-  `engine: ops`, and fix whatever it surfaces in their own repository.
-- The **next major** flips the default to `ops`, and removes the deprecated `cargo-flags`,
-  `clippy-args` and `test-args` together with `engine: cargo`'s jobs. No separate major is
-  cut for it before then.
+v0.7.0 drops the cargo engine instead of waiting for a `v2`, **on `v1`**, by the owner's
+decision (2026-09-29): the `engine` input, the cargo jobs, and `cargo-flags`,
+`clippy-args` and `test-args` are removed, and every call runs the ops jobs. That is a
+breaking change by the rules above, taken deliberately: it removes inputs, renames every
+check, and tightens the gates. It is shipped on `v1` because the callers are few and
+known, and each has a backlog task to migrate (drop the removed inputs, move their flags
+into `.ops.toml`, update required check names): `dbsec`, `ops` (which passes
+`engine: ops`) and `forge-testbed` (on `main`, so it meets the change first).
+consuming.md, "Moving off the cargo engine", is the migration.
+
+The same release moves rust-ci's tools to the **caller's** `mise.toml`: every job runs
+`jdx/mise-action` on the caller's checkout instead of loading forge's `setup-rust` at
+`forge-ref`. So rust-ci no longer checks forge out, and its `forge-ref`, `toolchain` and
+`use-sccache` inputs are removed with the engine: the toolchain is the caller's `rust`
+entry in `mise.toml` (or the runner's stable), and `target/` is cached by
+`Swatinem/rust-cache` only. A caller needs a `mise.toml` that pins at least ops (0.77.0 or
+later, the first check-only `verify`) and the tools of the jobs it runs. The
+`setup-rust` action, whose only user was rust-ci, is removed.
 
 Pinning tools is not treated as breaking. `rust-ci`'s cargo-deny and `bump`'s cocogitto and
 cargo-edit used to install unversioned, which on the day they were pinned resolved to the
 versions `mise.toml` now names. Bumping a pin later is an ordinary forge change, reviewed
 like one — a cargo-deny release with a stricter check is exactly the gate tightening above.
-The same holds for sccache: rust-ci's `engine: ops` and MSRV jobs (through
-`setup-rust`) used to take `sccache-action`'s default, the newest sccache release, and now
-pass it the `sccache` pin in `mise.toml`, which on the day it was pinned was that newest
-release. The frozen `engine: cargo` jobs keep the default. A caller's own `mise.toml` is
-not read on `v1`: reading it would change tool versions on an unmodified caller, so it
-can only arrive as an opt-in input (forge TASK-0052).
+rust-ci is the exception: from v0.7.0 it installs from the caller's own `mise.toml`, so
+its tool versions are the caller's to bump (see below). bump's reading of the caller's
+`mise.toml` can only arrive as an opt-in input (forge TASK-0052).
 
 Two side effects of routing `bump`'s `install-tools` through `setup-tools`, neither of
 which reaches a known caller (`ops`, `dbsec` and `forge-testbed` all use the default list):

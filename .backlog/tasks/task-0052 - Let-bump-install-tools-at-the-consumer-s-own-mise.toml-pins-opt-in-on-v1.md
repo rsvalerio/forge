@@ -1,9 +1,10 @@
 ---
 id: TASK-0052
-title: 'Let rust-ci and bump install tools at the consumer''s own mise.toml pins, opt-in on v1'
+title: 'Let bump install tools at the consumer''s own mise.toml pins, opt-in on v1'
 status: Triage
 assignee: []
 created_date: '2026-09-29 16:08'
+updated_date: '2026-09-29 19:27'
 labels:
   - ops-alignment
   - ci
@@ -33,3 +34,9 @@ ordinal: 1000
 - [ ] #1 rust-ci and bump take an opt-in input that installs each tool at the caller's mise.toml pin, falling back to forge's, classified in docs/versioning.md
 - [ ] #2 test-self exercises it against a fixture mise.toml
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-09-29: rust-ci already moved to the caller's mise.toml on #21 (not opt-in; shipped as a breaking change on v1 by owner decision). This task now covers bump only.
+<!-- SECTION:NOTES:END -->
