@@ -1,10 +1,10 @@
 ---
 id: TASK-0053
 title: 'forge-testbed: go green on ops-only rust-ci and merge its forge-ref: main PR'
-status: Triage
+status: In Progress
 assignee: []
 created_date: '2026-09-29 19:01'
-updated_date: '2026-09-29 19:42'
+updated_date: '2026-09-30 20:47'
 labels:
   - ci
   - cross-repo
@@ -29,8 +29,9 @@ ordinal: 1000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 forge-testbed PR #5 (forge-ref: main) is merged, so its rust-ci call loads main's actions, not v1's
-- [ ] #2 forge-testbed's rust-ci run on forge main is green under the ops jobs (verify-check, test, deps, sec), with any repo-side fixes or an .ops.toml it needs
+- [ ] #1 forge-testbed#6 (mise.toml, changelog newline, deny unused-license, publish-crates id-token) is merged; #5 closed as superseded since rust-ci has no forge-ref
+- [x] #2 forge-testbed's rust-ci run on forge main is green under verify, test, deps and sec
+
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -39,5 +40,7 @@ ordinal: 1000
 2026-09-29: rust-ci now also installs from the caller's own mise.toml (no forge-ref/toolchain/use-sccache). forge-testbed therefore needs a mise.toml pinning at least ops >= 0.77.0, cargo-nextest, cargo-deny, cargo-machete and trivy (and rust, recommended); see docs/consuming.md 'rust-ci'. forge-testbed#5 (forge-ref: main) becomes moot for rust-ci, since rust-ci no longer loads forge actions; close it or keep it for other workflows.
 
 Update (1366e08): check names are verify, test, deps, sec, msrv; no ops floor guard, so pin ops >= 0.77.0 in forge-testbed's mise.toml.
+
+2026-09-30: forge-testbed#6 CI green (verify, test, deps, sec). #5 closed. AC#1 waits on merging #6. ops deps decoding bug filed as ops TASK-2346.
 
 <!-- SECTION:NOTES:END -->
