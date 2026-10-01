@@ -39,13 +39,15 @@ Every Rust repo exposes two gates, and they mean the same thing in every repo:
 | Gate | What it runs | Who runs it |
 |---|---|---|
 | `verify` | The fast static gate: fmt, clippy, build, doc (plus the whitespace, JSON and YAML checks) | The pre-commit hook, code-review wave runners, developers before a push |
-| `qa` | The full gate: deps, tests (including doctests) and security | Developers before a release, CI |
+| `qa` | The full gate: deps, tests (including doctests) and security | The pre-push hook, developers before a release, CI |
 
 **CI runs both, in check-only mode.** From ops 0.77.0 `verify` is check-only: it runs the
 check form of fmt and the whitespace fixers and writes nothing, and `verify-fix` is the
-rewriting form for developers. So CI runs `ops verify` itself. CI also sets `OPS__CARGO__LOCKED=true`, so every cargo command builds against the committed
-`Cargo.lock`. forge's `rust-ci.yml` does exactly this (see
-[consuming.md](consuming.md#rust-ci)).
+rewriting form for developers. So CI runs `ops verify` and `ops qa` themselves, one job
+each, with nothing a local run does not have: forge's `rust-ci.yml` does exactly this
+(see [consuming.md](consuming.md#rust-ci)). A repo that wants every cargo command to build
+against the committed `Cargo.lock` sets `[cargo] locked = true` in `.ops.toml`, which
+holds locally and in CI alike.
 
 `ops explain verify` and `ops explain qa` print exactly what each gate runs in a given repo.
 A repo that needs more adds to a gate with `[extend.verify]` or `[extend.qa]` rather than
@@ -87,12 +89,12 @@ reads forge's.
 | Tool | Needed by | `mise.toml` entry (forge's pin) |
 |---|---|---|
 | ops | every gate; every rust-ci job | `ops = "0.77.0"`, with `[tool_alias] ops = "github:rsvalerio/ops"` |
-| cargo-deny | `ops deps`; rust-ci `ops deps` | `cargo-deny = "0.20.2"` (aqua) |
-| cargo-machete | `ops deps` (a warning: it is heuristic); rust-ci `ops deps` | `cargo-machete = "0.9.2"`, with `[tool_alias] cargo-machete = "github:bnjbvr/cargo-machete"` |
-| cargo-nextest | `ops next`; rust-ci `ops test` | `cargo-nextest = { version = "0.9.146", version_prefix = "cargo-nextest-" }`, with `[tool_alias] cargo-nextest = "github:nextest-rs/nextest"` |
-| cargo-edit (`cargo upgrade`, `cargo set-version`) | `ops deps` without `--check`; bump.yml | `cargo-edit = "0.13.13"`, with `[tool_alias] cargo-edit = "cargo:cargo-edit"` (compiled: no release binaries) |
+| cargo-deny | `ops deps` (in `qa`) | `cargo-deny = "0.20.2"` (aqua) |
+| cargo-machete | `ops deps` (in `qa`; a warning: it is heuristic) | `cargo-machete = "0.9.2"`, with `[tool_alias] cargo-machete = "github:bnjbvr/cargo-machete"` |
+| cargo-nextest | `ops next`, where a repo's `.ops.toml` runs it (the default `qa` uses `cargo test`) | `cargo-nextest = { version = "0.9.146", version_prefix = "cargo-nextest-" }`, with `[tool_alias] cargo-nextest = "github:nextest-rs/nextest"` |
+| cargo-edit (`cargo upgrade`, `cargo set-version`) | `ops deps`' upgrade survey (in `qa`); bump.yml | `cargo-edit = "0.13.13"`, with `[tool_alias] cargo-edit = "cargo:cargo-edit"` (compiled: no release binaries) |
 | cargo-llvm-cov | `ops coverage` | `"aqua:taiki-e/cargo-llvm-cov" = "<version>"`; no forge workflow runs it, so forge pins none |
-| trivy | `ops sec`; rust-ci `ops sec` | `trivy = "0.70.0"` (aqua) |
+| trivy | `ops sec` (in `qa`) | `trivy = "0.70.0"` (aqua) |
 | cocogitto (`cog`) | bump.yml | `cocogitto = "7.0.0"` (aqua) |
 | cargo-dist (`dist`) | a repo's dist-generated release workflow | `cargo-dist = "<version>"` (aqua), equal to `cargo-dist-version` in `dist-workspace.toml`, which is what dist's own workflow installs; forge pins none |
 | gh, jq | bump, publish-\*, apt-pool-push scripts | preinstalled on GitHub runners; `gh` and `jq` (aqua) for laptops |

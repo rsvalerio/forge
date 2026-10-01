@@ -37,7 +37,7 @@ actions/                      # composite actions — step-level, run inside the
   setup-ops/                  #   install a pinned, sha256-verified ops release
   setup-tools/                #   install tools at mise.toml's pins: the one install method
 .github/workflows/            # reusable workflows — job-level, own runner
-  rust-ci.yml                 #   Rust gates, run through ops
+  rust-ci.yml                 #   Rust CI: `ops verify` and `ops qa`, as run locally
   bump.yml                    #   cocogitto version bump, signed commit + tag
   publish-homebrew.yml
   publish-deb.yml             #   build a .deb with the consumer's command, then apt-pool-push
