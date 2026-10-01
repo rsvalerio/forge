@@ -78,8 +78,8 @@ jobs:
       auth: none
 
   # rust-ci.yml is the most-consumed workflow. ci/fixtures/rust-ci/ops is a crate that
-  # passes every gate it runs: verify, next and test-doc, deps --check, sec, and the MSRV
-  # job (the fixture declares rust-version and a matching clippy.toml msrv). Its own
+  # passes every gate it runs: `ops verify`, `ops qa`, and the msrv job (the fixture
+  # declares rust-version and a matching clippy.toml msrv). Its own
   # mise.toml is what a caller's looks like, at forge's pins; mise also merges forge's
   # root mise.toml above it, so this run installs forge's tools too.
   rust-ci:

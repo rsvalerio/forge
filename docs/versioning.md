@@ -128,9 +128,8 @@ adding a new workflow or action, or clarifying documentation.
 
 `rust-ci` was rebuilt on ops gates in v0.6.0 behind an opt-in `engine: ops`, with the
 original cargo jobs as the default, because the ops gates can turn a green consumer red:
-clippy and build gain `--all-targets`, every cargo command gains `--locked`, tests run
-under nextest with a separate doctest step, and `ops verify` and `ops sec` add gates
-the cargo jobs never had.
+clippy and build gain `--all-targets`, tests gain a separate doctest step, and
+`ops verify` and `ops sec` add gates the cargo jobs never had.
 
 v0.7.0 drops the cargo engine instead of waiting for a `v2`, **on `v1`**, by the owner's
 decision (2026-09-29): the `engine` input, the cargo jobs, and `cargo-flags`,
@@ -142,14 +141,19 @@ into `.ops.toml`, update required check names): `dbsec`, `ops` (which passes
 `engine: ops`) and `forge-testbed` (on `main`, so it meets the change first).
 consuming.md, "Moving off the cargo engine", is the migration.
 
-The same release moves rust-ci's tools to the **caller's** `mise.toml`: every job runs
-`jdx/mise-action` on the caller's checkout instead of loading forge's `setup-rust` at
-`forge-ref`. So rust-ci no longer checks forge out, and its `forge-ref`, `toolchain` and
-`use-sccache` inputs are removed with the engine: the toolchain is the caller's `rust`
-entry in `mise.toml` (or the runner's stable), and `target/` is cached by
-`Swatinem/rust-cache` only. A caller needs a `mise.toml` that pins at least ops (0.77.0 or
-later, the first check-only `verify`) and the tools of the jobs it runs. The
-`setup-rust` action, whose only user was rust-ci, is removed.
+The same release reshapes rust-ci in two more ways:
+
+- **Tools from the caller's `mise.toml`.** Every job runs `jdx/mise-action` on the
+  caller's checkout instead of loading forge's `setup-rust` at `forge-ref`, so rust-ci no
+  longer checks forge out, and its `forge-ref`, `toolchain` and `use-sccache` inputs are
+  removed. The toolchain is the caller's `rust` entry (or the runner's stable), `target/`
+  is cached by `Swatinem/rust-cache` only, and the `setup-rust` action, whose only user
+  was rust-ci, is removed. A caller pins ops 0.77.0 or later (the first check-only
+  `verify`) and the tools its gates call.
+- **The jobs are the two gates a developer runs**: `verify` (`ops verify`) and `qa`
+  (`ops qa`). `run-tests`, `run-deny` and `run-sec` are removed, and rust-ci no longer
+  sets `OPS__CARGO__LOCKED`, so what CI runs is whatever the repo's `.ops.toml` makes
+  those gates, exactly as on a laptop.
 
 Pinning tools is not treated as breaking. `rust-ci`'s cargo-deny and `bump`'s cocogitto and
 cargo-edit used to install unversioned, which on the day they were pinned resolved to the
