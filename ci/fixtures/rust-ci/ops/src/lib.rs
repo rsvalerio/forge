@@ -1,5 +1,5 @@
-//! rust-ci.yml fixture: one unit test for nextest and one doctest for
-//! `ops test-doc`, since nextest does not run doctests.
+//! rust-ci.yml fixture: one unit test and one doctest, so `ops qa` runs both
+//! its test and doctest steps.
 
 /// The answer.
 ///

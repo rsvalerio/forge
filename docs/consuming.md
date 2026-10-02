@@ -10,8 +10,9 @@ Pin a **tag**, never `main` — see [versioning.md](versioning.md) for why.
 
 ## rust-ci
 
-`rust-ci` runs the gate contract through [ops](https://github.com/rsvalerio/ops), so CI
-runs what a developer runs locally. `.github/workflows/ci.yml` in the consumer:
+`rust-ci` runs exactly what a developer runs before pushing: the two gates of the
+[contract](foundation.md#the-gate-contract), through [ops](https://github.com/rsvalerio/ops).
+`.github/workflows/ci.yml` in the consumer:
 
 ```yaml
 name: CI
@@ -26,57 +27,60 @@ jobs:
     uses: rsvalerio/forge/.github/workflows/rust-ci.yml@v1
 ```
 
-| Check | Runs | Input that turns it off |
+| Check | Runs | By default |
 |---|---|---|
-| `verify` | `ops verify`: fmt-check, whitespace and end-of-file checks, clippy, build, JSON/YAML parse checks, doc | — |
-| `test` | `ops next` (nextest), then `ops test-doc` (doctests, which nextest skips) | `run-tests: false` |
-| `deps` | `ops deps --check`: cargo-deny, and cargo-machete's unused-dependency warning | `run-deny: false` |
-| `sec` | `ops sec`: Trivy secret and vulnerability scans | `run-sec: false` |
-| `msrv` | `ops msrv --install` (below) | on only with `run-msrv: true` |
+| `verify` | `ops verify` | fmt-check, whitespace and end-of-file checks, clippy, build, JSON/YAML parse checks, doc |
+| `qa` | `ops qa` | `ops deps` (cargo-deny, cargo-machete, and an upgrade survey that reports but never fails), the tests, the doctests, `ops sec` (Trivy) |
+| `msrv` | `ops msrv --install` (below) | only with `run-msrv: true` |
+
+Each check is named under the caller's job, e.g. `rust / verify` and `rust / qa`; those
+two are what a branch ruleset should require.
+
+What each gate covers is the ops Rust stack's default unless your `.ops.toml` overrides
+it, so tune CI there — for example `[extend.clippy] args = [...]`, `[extend.qa]` to add a
+step, or a `test` of your own — not through this workflow. A change there reaches your
+pre-push hook and CI at once. Pin ops 0.77.0 or later: from that release `ops verify` is
+check-only, while an older ops's `verify` rewrites files and so would pass on the runner.
+For the same reason a repo that overrides or extends `verify` must keep it check-only.
+The other inputs are `working-directory`, `runs-on` and `env-json` (extra environment for
+the `qa` job).
 
 The tools come from **your** `mise.toml`: every job runs `jdx/mise-action`, which
-installs what it pins (cached), the same `mise install` your developers run. It needs at
-least ops and the tools of the jobs you run; pinning `rust` too makes CI use your
-toolchain instead of the runner's stable one:
+installs what it pins (cached), the same `mise install` your developers run. It needs ops
+and every tool your gates call; pinning `rust` too makes CI use your toolchain instead
+of the runner's stable one. For the default gates:
 
 ```toml
 [tool_alias]
 ops = "github:rsvalerio/ops"
-cargo-nextest = "github:nextest-rs/nextest"
 cargo-machete = "github:bnjbvr/cargo-machete"
+cargo-edit = "cargo:cargo-edit"
 
 [tools]
 rust = { version = "1.98.0", components = "rustfmt,clippy" }
-ops = "0.77.0"                  # ops verify
-cargo-nextest = { version = "0.9.146", version_prefix = "cargo-nextest-" }  # ops test
+ops = "0.77.0"
 cargo-deny = "0.20.2"           # ops deps
 cargo-machete = "0.9.2"         # ops deps
+cargo-edit = "0.13.13"          # ops deps (upgrade survey); compiles, then cached
 trivy = "0.70.0"                # ops sec
 ```
 
-[foundation.md](foundation.md#pipeline-tools) keeps these versions current. mise reads
-`mise.toml` from `working-directory` and every directory above it, so a root `mise.toml`
-serves a workspace in `backend/`.
+Add cargo-nextest (`[tool_alias] cargo-nextest = "github:nextest-rs/nextest"`) if your
+`.ops.toml` runs `ops next`. [foundation.md](foundation.md#pipeline-tools) keeps these
+versions current. mise reads `mise.toml` from `working-directory` and every directory
+above it, so a root `mise.toml` serves a workspace in `backend/`.
 
-Each `ops` command is the ops Rust stack's default unless your `.ops.toml` overrides it,
-so tune CI there — for example `[extend.clippy] args = [...]`, or a `next` of your own —
-not through this workflow. Pin ops 0.77.0 or later: from that release `ops verify` is
-check-only, while an older ops's `verify` rewrites files and so would pass on the runner.
-For the same reason a repo that overrides or extends `verify` must keep it check-only. The
-other inputs are `working-directory`, `runs-on` and `env-json` (for the `test` job).
-
-What the gates hold a repo to:
+What the default gates hold a repo to:
 
 - **`--all-targets`**: clippy and build also cover tests, benches and examples, so lints
   in test code fail the gate.
-- **`--locked`**: every cargo command builds against the committed `Cargo.lock`
-  (`OPS__CARGO__LOCKED=true`). A repo without one, or with a stale one, fails.
-- **nextest** plus a separate doctest step. nextest fails a workspace with no tests at
-  all; override `next` in `.ops.toml` if that is you.
 - **`cargo doc`**: broken intra-doc links fail when the workspace denies them.
+- **`--locked`**, if you want it: set `[cargo] locked = true` in `.ops.toml`, and every
+  cargo command, local and CI, builds against the committed `Cargo.lock`. rust-ci sets
+  nothing a local run does not, so it is never on in CI alone.
 
-`target/` is cached with `Swatinem/rust-cache` in the jobs that compile. rust-ci loads
-nothing from forge, so it has no `forge-ref`: the `uses:` ref is the whole pin.
+`target/` is cached with `Swatinem/rust-cache`. rust-ci loads nothing from forge, so it
+has no `forge-ref`: the `uses:` ref is the whole pin.
 
 ### Moving off the cargo engine
 
@@ -85,15 +89,16 @@ Before forge v0.7.0, rust-ci defaulted to `engine: cargo`: six jobs of raw cargo
 `clippy-args` and `test-args`. That engine, those three inputs and `engine` itself are
 gone (see [versioning.md](versioning.md#rust-ci-runs-on-ops-only)). A caller that still
 passes any of them fails with an unknown-input error. The same release moved the tools
-to your own `mise.toml` and removed `toolchain`, `use-sccache` and `forge-ref`. So:
+to your own `mise.toml`, removed `toolchain`, `use-sccache` and `forge-ref`, and
+collapsed the gates into two jobs, `verify` and `qa`, removing `run-tests`, `run-deny`
+and `run-sec`. So:
 
-- Drop `engine`, `cargo-flags`, `clippy-args`, `test-args`, `toolchain`, `use-sccache` and
-  `forge-ref` from the `with:` block, and move what `cargo-flags`, `clippy-args` and
-  `test-args` carried into `.ops.toml`.
+- Drop `engine`, `cargo-flags`, `clippy-args`, `test-args`, `toolchain`, `use-sccache`,
+  `forge-ref`, `run-tests`, `run-deny` and `run-sec` from the `with:` block. Move what
+  the flags carried into `.ops.toml`, and shape `qa` there instead of switching legs off.
 - Add a `mise.toml` pinning the tools (above). The toolchain moves from `toolchain:` or
   `rust-toolchain.toml` to its `rust` entry.
-- Update a branch ruleset that requires the old check names to the ones in the table above
-  (`verify`, `test`, `deps`, `sec`, `msrv`, under the caller's job name).
+- Update a branch ruleset to require `<job> / verify` and `<job> / qa`.
 - Expect the first run to surface what the stricter gates catch (the list above), and fix
   it in the repository.
 

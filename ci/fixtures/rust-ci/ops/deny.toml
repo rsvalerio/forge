@@ -1,4 +1,4 @@
-# rust-ci's deps job runs `ops deps --check` (cargo-deny) here. The fixture has no
+# rust-ci's qa job runs `ops deps` (cargo-deny) here. The fixture has no
 # dependencies, and it is unpublished, so it needs no license of its own.
 [licenses]
 private = { ignore = true }

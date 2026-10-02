@@ -1,15 +1,16 @@
 name: Rust CI
 
-# Shared Rust gates, run through ops (docs/consuming.md, "rust-ci"): `ops verify`,
-# `ops next` + `ops test-doc`, `ops deps --check` and `ops sec`, so CI runs the commands
-# a developer runs, with the flags from the ops Rust stack plus the caller's `.ops.toml`.
-# `run-msrv` adds an MSRV job.
+# CI runs exactly what a developer runs before pushing: `ops verify` and `ops qa`, the two
+# gates of the contract in docs/foundation.md, plus `ops msrv --install` when `run-msrv`
+# is on. What each gate covers is the ops Rust stack's default unless the caller's
+# `.ops.toml` overrides it, so a repo tunes its CI there, and a change to it reaches the
+# pre-push hook and CI at once.
 #
 # Tools come from the caller's own mise.toml, the same file its developers run
-# `mise install` against: ops, cargo-nextest, cargo-deny, cargo-machete, trivy, and
-# `rust` itself (mise installs it through rustup; without it, the runner's stable
-# toolchain is used). Nothing here loads forge's actions or forge's mise.toml, so there
-# is no forge checkout and no `forge-ref`.
+# `mise install` against: ops, the tools its gates call (cargo-deny, cargo-machete,
+# cargo-edit and trivy by default), and `rust` itself (mise installs it through rustup;
+# without it, the runner's stable toolchain is used). Nothing here loads forge's actions
+# or forge's mise.toml, so there is no forge checkout and no `forge-ref`.
 #
 # oxydraw's `frontend` job is deliberately NOT here — it is Bun/SPA-specific and has one
 # consumer (see PLAN.md open question 4). It stays in oxydraw's own ci.yml.
@@ -29,24 +30,10 @@ on:
         default: ubuntu-latest
       env-json:
         description: >-
-          JSON object of extra environment variables for the test job, e.g.
+          JSON object of extra environment variables for the qa job, e.g.
           '{"OPS_LOG_LEVEL":"debug"}'.
         type: string
         default: "{}"
-      run-deny:
-        description: Run `ops deps --check` (cargo-deny and cargo-machete).
-        type: boolean
-        default: true
-      run-tests:
-        description: Run the test job.
-        type: boolean
-        default: true
-      run-sec:
-        description: >-
-          Run `ops sec` (Trivy secret and vulnerability scans), the security leg of the
-          gate contract.
-        type: boolean
-        default: true
       run-msrv:
         description: >-
           Check the workspace on its declared minimum Rust version: `ops msrv --install`
@@ -72,24 +59,20 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
-  # Build against the committed Cargo.lock: ops adds `--locked` to every cargo command
-  # that resolves it.
-  OPS__CARGO__LOCKED: "true"
 
 # Every job: check out, `mise install` the caller's mise.toml (jdx/mise-action caches the
-# installs, keyed on the config, and trusts the checkout's config), cache target/ where
-# the job compiles (Swatinem/rust-cache, which also turns incremental builds off), then
-# run one leg of the gate contract. Each check is named after its job id. What each
-# `ops` command runs is the ops Rust stack's default unless the caller's `.ops.toml`
-# overrides it, so a repo tunes its CI there, not through this workflow's inputs.
+# installs, keyed on the config, and trusts the checkout's config), cache target/
+# (Swatinem/rust-cache, which also turns incremental builds off), then run one gate. Each
+# check is named after its job id.
 #
 # jdx/mise-action's `version` pins mise itself; Dependabot moves the SHA but not
 # `version`, so bump it with forge's mise.toml and actions/setup-tools (README "Layout").
 # Swatinem/rust-cache runs after mise so its key sees the toolchain mise selected.
 
 jobs:
-  # The static gate: fmt-check, the whitespace and end-of-file checks, clippy
-  # (--all-targets, so test code is linted), build, the JSON/YAML parse checks and doc.
+  # The static gate. By default: fmt-check, the whitespace and end-of-file checks, clippy
+  # (--all-targets, so test code is linted), build, the JSON/YAML parse checks and doc,
+  # all check-only from ops 0.77.0.
   verify:
     runs-on: ${{ inputs.runs-on }}
     steps:
@@ -106,9 +89,10 @@ jobs:
       - run: ops verify
         working-directory: ${{ inputs.working-directory }}
 
-  # nextest for the tests, `ops test-doc` for the doctests nextest does not run.
-  test:
-    if: inputs.run-tests
+  # The full gate. By default: `ops deps` (cargo-deny, cargo-machete, and cargo-edit's
+  # upgrade survey, which reports but never fails), the tests, the doctests, and `ops sec`
+  # (Trivy secret and vulnerability scans).
+  qa:
     runs-on: ${{ inputs.runs-on }}
     env: ${{ fromJSON(inputs.env-json) }}
     steps:
@@ -122,41 +106,7 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: ${{ inputs.working-directory }}
-      - run: ops next
-        working-directory: ${{ inputs.working-directory }}
-      - run: ops test-doc
-        working-directory: ${{ inputs.working-directory }}
-
-  # cargo-deny (advisories, licenses, bans, sources) and cargo-machete (unused
-  # dependencies, a warning only: it is heuristic). `--check` is the CI-safe mode: no
-  # upgrade survey, so no cargo-edit. Compiles nothing, so no target/ cache.
-  deps:
-    if: inputs.run-deny
-    runs-on: ${{ inputs.runs-on }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
-        with:
-          version: 2026.9.14
-          working_directory: ${{ inputs.working-directory }}
-      - run: ops deps --check
-        working-directory: ${{ inputs.working-directory }}
-
-  # Trivy's secret scan always, and its vulnerability scan wherever a lockfile is found.
-  sec:
-    if: inputs.run-sec
-    runs-on: ${{ inputs.runs-on }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
-        with:
-          version: 2026.9.14
-          working_directory: ${{ inputs.working-directory }}
-      - run: ops sec
+      - run: ops qa
         working-directory: ${{ inputs.working-directory }}
 
   # Every other job builds on the pinned toolchain, so without this nothing checks the
