@@ -735,7 +735,9 @@ through mise — so a workflow at a given forge ref always installs that ref's v
   runner's global one reaches the install, and the `MISE_*` settings it uses are scoped to
   its own steps. The job keeps the tools' `PATH` entries, and mise itself.
 - Installs are cached per tool set. `cargo-edit` has no release binaries, so its first
-  install compiles it.
+  install compiles it — which needs `cargo` on PATH. `bump.yml` installs a Rust toolchain
+  first for that (its `rust-toolchain` input); a job calling setup-tools with a `cargo:`
+  tool must do the same.
 - `bump.yml`'s `install-tools` goes through it, as does every rust-ci
   job.
 - Your repository's own `mise.toml` is for your laptops: copy into it the entries of the
