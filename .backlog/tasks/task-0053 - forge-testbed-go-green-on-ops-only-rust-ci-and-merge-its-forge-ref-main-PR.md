@@ -1,10 +1,10 @@
 ---
 id: TASK-0053
 title: 'forge-testbed: go green on ops-only rust-ci and merge its forge-ref: main PR'
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-09-29 19:01'
-updated_date: '2026-09-30 20:47'
+updated_date: '2026-10-02 20:24'
 labels:
   - ci
   - cross-repo
@@ -29,7 +29,7 @@ ordinal: 1000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 forge-testbed#6 (mise.toml, changelog newline, deny unused-license, publish-crates id-token) is merged; #5 closed as superseded since rust-ci has no forge-ref
+- [x] #1 forge-testbed#6 (mise.toml, changelog newline, deny unused-license, publish-crates id-token) is merged; #5 closed as superseded since rust-ci has no forge-ref
 - [x] #2 forge-testbed's rust-ci run on forge main is green under verify, test, deps and sec
 
 <!-- AC:END -->
@@ -42,5 +42,7 @@ ordinal: 1000
 Update (1366e08): check names are verify, test, deps, sec, msrv; no ops floor guard, so pin ops >= 0.77.0 in forge-testbed's mise.toml.
 
 2026-09-30: forge-testbed#6 CI green (verify, test, deps, sec). #5 closed. AC#1 waits on merging #6. ops deps decoding bug filed as ops TASK-2346.
+
+Closed 2026-10-02: forge-testbed #6 (mise.toml, changelog newline, deny unused-license, publish-crates id-token) and #7 (cargo-edit for ops qa) merged; #5 closed as superseded. forge-testbed is green on rust-ci v0.7.0 (rust / verify, rust / qa), and its scheduled Publish crates runs pass again.
 
 <!-- SECTION:NOTES:END -->
