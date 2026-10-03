@@ -350,6 +350,38 @@ explanation, rather than racing itself into a confusing GraphQL conflict.
 To migrate without touching `cog.toml` yet, pass `signed: false`. You then keep unsigned
 bump commits, which is the current behaviour in both repos.
 
+### Installing at your own pins (`tool-pins`)
+
+By default the bump installs cocogitto and cargo-edit at the versions forge's `mise.toml`
+pins at `forge-ref`, which can differ from the ones your `mise.toml` gives your laptops.
+Pass `tool-pins: repo` to install at yours:
+
+```yaml
+    with:
+      branch: ${{ github.event.workflow_run.head_branch }}
+      tool-pins: repo
+```
+
+- Each tool in `install-tools` installs at the version your `mise.toml` pins. The file
+  is looked for in `working-directory` and each directory above it up to the repository
+  root, and the nearest one that pins the tool wins, as with mise. A tool none of them
+  pins installs at forge's pin, and `name@version` in `install-tools` beats both. The
+  step's log names the source of every version.
+- Only the version is read. The install still runs under forge's mise configuration, so
+  your `[tool_alias]`, tool options (`version_prefix`), hooks, `[env]` and settings do
+  not reach it, and neither does a tool `install-tools` does not name.
+- A pin is found under the tool's name (`cocogitto`, `cargo-edit`) or under the backend
+  forge aliases it to (`"cargo:cargo-edit"`; forge's `mise.toml`, `[tool_alias]`). An
+  entry keyed by any other backend is not found, and the tool installs at forge's pin.
+- A table pin gives its `version` (`{ version = "0.9.146", ... }`, or a
+  `[tools.<name>]` sub-table). A pin with no single version, such as an array, fails the
+  step.
+- Only `mise.toml` is read, not mise's other config names (`.mise.toml`,
+  `.config/mise.toml`, `.tool-versions`). With `tool-pins: repo` and no `mise.toml` to
+  read, the step fails.
+
+rust-ci needs no such input: it always installs from your `mise.toml`.
+
 ### What changes for the consumer
 
 - Bump commits become **Verified** — authored by `my-cloud-ci[bot]`, signed by GitHub.
@@ -720,7 +752,8 @@ through `setup-tools` (below), at the `ops` pin in forge's `mise.toml`.
 The one way forge's workflows install tools. It installs each named tool at the version
 forge's `mise.toml` pins and puts it on `PATH` — ops through `setup-ops`, everything else
 through mise — so a workflow at a given forge ref always installs that ref's versions, and
-`mise install` in a forge checkout gets the same ones locally.
+`mise install` in a forge checkout gets the same ones locally. With `pins: repo` the
+versions come from the calling repository's `mise.toml` instead.
 
 ```yaml
       - uses: ./.forge/actions/setup-tools   # from a forge checkout, as the workflows do
@@ -731,20 +764,25 @@ through mise — so a workflow at a given forge ref always installs that ref's v
 - **`tools`** is a comma- or whitespace-separated list of keys in forge's `mise.toml`
   `[tools]`. A name it does not pin fails the step; pass `name@version` (a mise tool name)
   for a tool forge does not pin.
-- **Only forge's `mise.toml` is read.** Neither the caller's own mise configuration nor a
-  runner's global one reaches the install, and the `MISE_*` settings it uses are scoped to
-  its own steps. The job keeps the tools' `PATH` entries, and mise itself.
+- **`pins`** is `forge` (the default) or `repo`. With `repo`, a tool named without a
+  version installs at the pin in the `mise.toml` in `pins-directory` (default `.`) or
+  the nearest one above it, and at forge's pin if none has one. It is what `bump.yml`'s
+  `tool-pins` passes; the rules are under
+  [Installing at your own pins](#installing-at-your-own-pins-tool-pins).
+- **mise loads only forge's `mise.toml`.** Neither the caller's own mise configuration
+  nor a runner's global one reaches the install, and the `MISE_*` settings it uses are
+  scoped to its own steps. `pins: repo` reads versions out of the caller's file as text
+  and nothing else from it. The job keeps the tools' `PATH` entries, and mise itself.
 - Installs are cached per tool set. `cargo-edit` has no release binaries, so its first
   install compiles it — which needs `cargo` on PATH. `bump.yml` installs a Rust toolchain
   first for that (its `rust-toolchain` input); a job calling setup-tools with a `cargo:`
   tool must do the same.
-- `bump.yml`'s `install-tools` goes through it, as does every rust-ci
-  job.
-- Your repository's own `mise.toml` is for your laptops: copy into it the entries of the
-  tools your gates run, at forge's pins, so `mise install` gets what CI runs.
+- `bump.yml`'s `install-tools` goes through it. rust-ci does not: it runs
+  `jdx/mise-action` on your own `mise.toml`.
+- Your repository's own `mise.toml` is what your laptops and rust-ci install from: copy
+  into it the entries of the tools your gates run.
   [docs/foundation.md](foundation.md#pipeline-tools) lists every tool, what needs it and its
-  entry. forge's workflows do not read your `mise.toml` on `v1` (forge TASK-0052 tracks an
-  opt-in).
+  entry. bump reads it only with `tool-pins: repo`; the publish workflows never do.
 
 ## Shared configuration
 

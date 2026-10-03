@@ -111,11 +111,22 @@ on:
       install-tools:
         description: >-
           Tools to install, through forge's actions/setup-tools: each name is installed at
-          the version forge's mise.toml pins (both defaults are pinned there), and a tool
-          forge does not pin must be given as `name@version` (a mise tool name).
+          the version forge's mise.toml pins (both defaults are pinned there), or this
+          repository's with `tool-pins: repo`, and a tool neither pins must be given as
+          `name@version` (a mise tool name).
         type: string
         required: false
         default: cargo-edit,cocogitto
+      tool-pins:
+        description: >-
+          Where `install-tools` gets its versions. `forge` (the default): forge's mise.toml
+          at `forge-ref`. `repo`: this repository's own mise.toml, the file its developers
+          run `mise install` against, looked for in `working-directory` and above it; a
+          tool it does not pin still installs at forge's pin. Only versions are taken from
+          it: the install runs under forge's mise configuration either way.
+        type: string
+        required: false
+        default: forge
       rust-toolchain:
         description: >-
           Rust toolchain installed before `install-tools`, so `cargo` is on PATH. Both
@@ -213,11 +224,15 @@ jobs:
 
       # At the versions forge's mise.toml pins, the one list every forge workflow installs
       # from, so a bump never runs a cocogitto or cargo-edit that changed since the last one.
-      # setup-tools reads only forge's mise.toml, never this repository's.
+      # With `tool-pins: repo` the versions are this repository's mise.toml pins instead,
+      # so the bump runs the cocogitto its developers run; mise still loads only forge's
+      # configuration.
       - name: Install ${{ inputs.install-tools }}
         uses: ./.forge/actions/setup-tools
         with:
           tools: ${{ inputs.install-tools }}
+          pins: ${{ inputs.tool-pins }}
+          pins-directory: ${{ inputs.working-directory }}
 
       # In signed mode the commit is created through the API, so a `git push` post_bump_hook
       # would race it: cog would push the UNSIGNED commit first, leaving the branch ahead of

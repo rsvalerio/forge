@@ -160,8 +160,14 @@ cargo-edit used to install unversioned, which on the day they were pinned resolv
 versions `mise.toml` now names. Bumping a pin later is an ordinary forge change, reviewed
 like one — a cargo-deny release with a stricter check is exactly the gate tightening above.
 rust-ci is the exception: from v0.7.0 it installs from the caller's own `mise.toml`, so
-its tool versions are the caller's to bump (see below). bump's reading of the caller's
-`mise.toml` can only arrive as an opt-in input (forge TASK-0052).
+its tool versions are the caller's to bump (see below).
+
+bump reads the caller's `mise.toml` only when asked. Its `tool-pins` input (forge
+TASK-0052) is an optional input whose default, `forge`, is the behaviour above, so adding
+it is not breaking. `tool-pins: repo` takes each tool's version from the caller's
+`mise.toml` and forge's pin for a tool it does not list. Flipping the default to `repo`
+would change which cocogitto an unmodified caller runs, so it is a breaking change, and the
+next major can make it.
 
 Two side effects of routing `bump`'s `install-tools` through `setup-tools`, neither of
 which reaches a known caller (`ops`, `dbsec` and `forge-testbed` all use the default list):
@@ -183,7 +189,10 @@ is written**, so a refusal leaves the repository untouched:
 
 1. **Testbed green on `main`.** The target commit must be on the default branch and have a
    successful `Test self` run. A commit whose run is still in flight is refused; wait and
-   dispatch again.
+   dispatch again. A commit that changes only `.backlog/` has a successful run with its
+   jobs skipped, and only if the commit under it has a successful run of its own
+   (test-self.yml, `changes`), so a green run still means the code at that commit was
+   tested.
 2. **Tag `vX.Y.Z`.** The version must be plain `vMAJOR.MINOR.PATCH` (no leading zeros, no
    pre-release suffix), must not exist, and must be greater than every existing release
    tag. A patch for an older line, cut after a newer release, is therefore refused — cut

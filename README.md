@@ -46,6 +46,7 @@ actions/                      # composite actions — step-level, run inside the
   test-self.yml               #   forge's own CI
 ci/lint.sh                    # static checks that `ops verify` runs
 ci/fixtures/rust-ci/ops/      # the crate test-self runs rust-ci.yml against
+ci/fixtures/setup-tools/      # the caller's mise.toml test-self runs `pins: repo` against
 templates/                    # SECURITY, CONTRIBUTING, CODE_OF_CONDUCT, issue + PR templates
 docs/                         # foundation.md: the gate contract and shared Rust config (from ops)
 mise.toml                     # every tool version: forge's workflows, and the local gates
@@ -60,7 +61,8 @@ ops included, are pinned in `mise.toml` (`mise install`), and so is every other 
 forge workflow installs: `actions/setup-tools` is how they install anything, and it reads
 only that file (ops through `actions/setup-ops`, at the `ops` pin). So test-self lints
 with the same actionlint, shellcheck and ops you run locally, and `bump` runs the
-cocogitto and cargo-edit of the forge ref it is called at. `rust-ci` is the exception: it
+cocogitto and cargo-edit of the forge ref it is called at, unless its caller passes
+`tool-pins: repo` for the versions in its own `mise.toml`. `rust-ci` is the exception: it
 installs from the caller's own `mise.toml`, and its fixture's `mise.toml`
 (`ci/fixtures/rust-ci/ops/`) keeps forge's pins.
 

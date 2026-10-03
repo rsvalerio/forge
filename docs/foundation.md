@@ -114,6 +114,10 @@ Four points were open when the decision was made:
    repo's developers install, and rust-ci loads nothing from forge. Callers pin ops 0.77.0 or
    later, the first whose `verify` is check-only. bump and the
    publish workflows still read forge's `mise.toml` at `forge-ref` through setup-tools.
+   bump takes the caller's versions with `tool-pins: repo`, an opt-in on `v1` (forge
+   TASK-0052; consuming.md, "Installing at your own pins"): setup-tools reads each tool's
+   version out of the caller's `mise.toml` and installs it under forge's mise
+   configuration, so the caller's file chooses versions and nothing else.
 2. **setup-ops stays.** It is a published `v1` action, so retiring it would break its
    callers, and setup-tools installs ops through it: an exact version, the release's
    `.sha256` checked before extraction, `ops --version` asserted. Locally, `mise install`
@@ -169,9 +173,10 @@ backlog:
 | dbsec replaces `forge-sync` with `ops init --rust --check` and adopts `verify`/`qa`. Until it does, forge's `v1` must not move past the deletion of `config/*.toml`: dbsec's `forge-sync` reads them at `v1` | dbsec | dbsec TASK-1131 (was forge TASK-0046) |
 | event0 and oxydraw adopt the foundation files and gates | event0, oxydraw | forge TASK-0047 |
 | `ops init --rust` scaffolds `mise.toml` with the gate tools and `--check` reports pin drift | ops | ops TASK-2344 (from forge TASK-0050) |
-| bump installs at the caller's own `mise.toml` pins, opt-in on `v1` (rust-ci already does) | forge | forge TASK-0052 |
 
 Already done: the ops built-ins for check-only fmt, `--locked` and a CI-safe `deps`
 (ops TASK-2322, TASK-2323, TASK-2324), the embedded templates and `ops init --rust`
-(ops TASK-2330), the ai skills' templates derived from ops (ai TASK-0008), and the
-deletion of forge's `config/*.toml` mirrors (forge TASK-0048).
+(ops TASK-2330), the ai skills' templates derived from ops (ai TASK-0008), the
+deletion of forge's `config/*.toml` mirrors (forge TASK-0048), and bump's opt-in
+`tool-pins: repo` (forge TASK-0052; rust-ci already installed from the caller's
+`mise.toml`).

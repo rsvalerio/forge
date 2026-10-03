@@ -1,10 +1,10 @@
 ---
 id: TASK-0052
 title: 'Let bump install tools at the consumer''s own mise.toml pins, opt-in on v1'
-status: Triage
+status: In Progress
 assignee: []
 created_date: '2026-09-29 16:08'
-updated_date: '2026-09-29 19:27'
+updated_date: '2026-10-03 00:00'
 labels:
   - ops-alignment
   - ci
@@ -13,6 +13,16 @@ modified_files:
   - actions/setup-tools/setup-tools.sh
   - .github/workflows/rust-ci.yml
   - .github/workflows/bump.yml
+  - .github/workflows/test-self.yml
+  - actions/setup-tools/action.yml
+  - actions/setup-tools/setup-tools.test.sh
+  - ci/fixtures/setup-tools/mise.toml
+  - .ops.toml
+  - docs/consuming.md
+  - docs/foundation.md
+  - docs/versioning.md
+  - README.md
+  - mise.toml
 priority: low
 ordinal: 1000
 ---
@@ -31,12 +41,19 @@ ordinal: 1000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 rust-ci and bump take an opt-in input that installs each tool at the caller's mise.toml pin, falling back to forge's, classified in docs/versioning.md
-- [ ] #2 test-self exercises it against a fixture mise.toml
+- [x] #1 rust-ci and bump take an opt-in input that installs each tool at the caller's mise.toml pin, falling back to forge's, classified in docs/versioning.md
+- [x] #2 test-self exercises it against a fixture mise.toml
 <!-- AC:END -->
 
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
 2026-09-29: rust-ci already moved to the caller's mise.toml on #21 (not opt-in; shipped as a breaking change on v1 by owner decision). This task now covers bump only.
+
+2026-10-03: implemented on branch task-0052-bump-repo-pins. bump takes `tool-pins` (`forge` default, `repo`), passed to setup-tools as `pins` with `pins-directory` = bump's `working-directory`. setup-tools.sh reads each tool's version out of the caller's mise.toml as text and hands mise `name@version`, so mise still loads only forge's config. The open points, as settled:
+- Table pins: the caller's `version` is taken (inline table or `[tools.<name>]`), its other options are ignored. forge's own options still apply: `mise install cargo-nextest@0.9.140` under forge's mise.toml used forge's `version_prefix` (checked with mise 2026.10.0).
+- A different backend name: the pin is found under the tool's name or under the backend forge's `[tool_alias]` gives it (`"cargo:cargo-edit"`). Any other backend key is not found and forge's pin is used; the step log names each version's source.
+- Next major: versioning.md classifies the input as non-breaking and the default flip to `repo` as breaking, left for the next major. Not decided here.
+Also: nearest mise.toml wins, walking up from `working-directory` to the workspace root; only the name `mise.toml` is read; `repo` with no mise.toml, or a pin with no single version (an array), fails the step.
+Tests: `ops qa` runs actions/setup-tools/setup-tools.test.sh (resolution rules, no network); test-self's `setup-tools-repo-pins` job installs against ci/fixtures/setup-tools/mise.toml. `ops verify` and `ops qa` pass locally; the test-self job has not run in CI yet, and bump.yml's `tool-pins: repo` path itself only runs from a caller (forge-testbed).
 <!-- SECTION:NOTES:END -->
