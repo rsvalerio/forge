@@ -382,6 +382,28 @@ Pass `tool-pins: repo` to install at yours:
 
 rust-ci needs no such input: it always installs from your `mise.toml`.
 
+### What the runner must provide (`rust-toolchain`)
+
+The bump job needs `cargo` on `PATH` twice: mise compiles `cargo-edit` with
+`cargo install` (it publishes no binaries), and a Rust consumer's cog `pre_bump_hooks` run
+`cargo set-version`. From v0.8.0 the job installs a Rust toolchain itself before the
+tools, `stable` unless `rust-toolchain` names another, so a runner does not have to ship
+one. Before that it relied on the runner's own cargo: GitHub-hosted images have it, and a
+self-hosted runner whose job `PATH` lacks `~/.cargo/bin` failed at
+`Install cargo-edit,cocogitto` within milliseconds.
+
+A self-hosted runner still has to provide what that install uses:
+
+- `curl`, and network access to `static.rust-lang.org`, for rustup when it is not already
+  installed.
+- A C compiler and linker (`build-essential` on Debian and Ubuntu), because
+  `cargo install` builds cargo-edit from source. The build is cached, so it runs once per
+  tool set.
+- `gh` and `jq`, which the workflow's own steps call (GitHub-hosted images ship both).
+
+`rust-toolchain: ""` skips the toolchain install, for a runner that already puts `cargo`
+on the job's `PATH`, or a consumer whose `install-tools` and cog hooks need no Rust.
+
 ### What changes for the consumer
 
 - Bump commits become **Verified** — authored by `my-cloud-ci[bot]`, signed by GitHub.

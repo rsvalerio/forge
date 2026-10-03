@@ -1,15 +1,17 @@
 ---
 id: TASK-0054
 title: 'Release v0.7.1 so v1 carries the bump job''s Rust toolchain fix'
-status: Triage
+status: In Progress
 assignee: []
 created_date: '2026-10-03 07:55'
+updated_date: '2026-10-03 12:00'
 labels:
   - release
   - bump
 dependencies: []
 modified_files:
   - .github/workflows/bump.yml
+  - docs/consuming.md
 priority: medium
 ordinal: 1000
 ---
@@ -30,5 +32,13 @@ ordinal: 1000
 <!-- AC:BEGIN -->
 - [ ] #1 v0.7.1 is cut from a main commit that includes 2efd133, with the Release workflow
 - [ ] #2 v1 points at v0.7.1
-- [ ] #3 A bump on a self-hosted runner without cargo on PATH passes the tool install step, or docs/consuming.md says what such a runner must provide
+- [x] #3 A bump on a self-hosted runner without cargo on PATH passes the tool install step, or docs/consuming.md says what such a runner must provide
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-10-03: the release is v0.8.0, not v0.7.1, by owner decision: main also carries #26 (`tool-pins`, a new optional input) since v0.7.0, and a feature release bumps the minor. The title and criteria #1 and #2 keep the number the task was filed with; read them as v0.8.0.
+
+Criterion #3 is met through the docs: consuming.md, "What the runner must provide (`rust-toolchain`)", lists what a self-hosted runner needs (curl and network for rustup, a C compiler and linker for the cargo-edit build, gh and jq). No self-hosted runner without cargo was available to run a bump on, so that path is documented, not tested.
+<!-- SECTION:NOTES:END -->
