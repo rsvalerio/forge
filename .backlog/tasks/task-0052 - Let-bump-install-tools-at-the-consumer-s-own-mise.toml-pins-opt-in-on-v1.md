@@ -1,10 +1,10 @@
 ---
 id: TASK-0052
 title: 'Let bump install tools at the consumer''s own mise.toml pins, opt-in on v1'
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-09-29 16:08'
-updated_date: '2026-10-03 00:00'
+updated_date: '2026-10-03 11:00'
 labels:
   - ops-alignment
   - ci
@@ -55,5 +55,7 @@ ordinal: 1000
 - A different backend name: the pin is found under the tool's name or under the backend forge's `[tool_alias]` gives it (`"cargo:cargo-edit"`). Any other backend key is not found and forge's pin is used; the step log names each version's source.
 - Next major: versioning.md classifies the input as non-breaking and the default flip to `repo` as breaking, left for the next major. Not decided here.
 Also: nearest mise.toml wins, walking up from `working-directory` to the workspace root; only the name `mise.toml` is read; `repo` with no mise.toml, or a pin with no single version (an array), fails the step.
-Tests: `ops qa` runs actions/setup-tools/setup-tools.test.sh (resolution rules, no network); test-self's `setup-tools-repo-pins` job installs against ci/fixtures/setup-tools/mise.toml. `ops verify` and `ops qa` pass locally; the test-self job has not run in CI yet, and bump.yml's `tool-pins: repo` path itself only runs from a caller (forge-testbed).
+Tests: `ops qa` runs actions/setup-tools/setup-tools.test.sh (resolution rules, no network); test-self's `setup-tools-repo-pins` job installs against ci/fixtures/setup-tools/mise.toml. `ops verify` and `ops qa` pass locally.
+
+Closed 2026-10-03: merged as #26, Test self green on the PR and on main (run 37117533694), `setup-tools-repo-pins` included. forge-testbed #8 passes `tool-pins: repo` and pins cocogitto in its mise.toml; its Bump run 37117822693 succeeded and logged `cargo-edit 0.13.13 (the repository's mise.toml)` and `cocogitto 7.0.0 (the repository's mise.toml)`. It was a no-op bump (a `ci:` commit), so the install ran and nothing was released.
 <!-- SECTION:NOTES:END -->
