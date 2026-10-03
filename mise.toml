@@ -1,8 +1,9 @@
 # The one list of tool versions forge's workflows install, and of the tools forge's
 # gates (`ops verify`, `ops qa`) need locally. The workflows install through
 # actions/setup-tools, which reads this file: test-self.yml from its own checkout,
-# bump.yml from the forge checkout at `forge-ref`. So a version is bumped here and CI
-# follows. rust-ci.yml is the exception: it installs from the caller's own mise.toml,
+# bump.yml from the forge checkout at `forge-ref` (a caller passing `tool-pins: repo` gets
+# its own mise.toml's versions instead, and these for a tool it does not pin). So a
+# version is bumped here and CI follows. rust-ci.yml is the exception: it installs from the caller's own mise.toml,
 # and its test-self fixture keeps these same pins. Locally, `mise install` fetches the
 # same versions; mise resolves them per project, so the shellcheck that actionlint shells
 # out to is found here even on a machine with no global shellcheck default, and the gates

@@ -1,20 +1,26 @@
 name: setup tools
 description: >-
-  Install tools at the versions forge's mise.toml pins and put them on PATH: `ops` through
-  setup-ops (sha256-verified), everything else through mise. A tool mise.toml does not pin
-  fails the step unless it is given as `name@version`.
+  Install tools at pinned versions and put them on PATH: `ops` through setup-ops
+  (sha256-verified), everything else through mise. The versions are forge's mise.toml pins,
+  or with `pins: repo` the calling repository's own. A tool neither pins fails the step
+  unless it is given as `name@version`.
 
-# The one way forge's workflows install tools. The versions live in exactly one place,
-# forge's mise.toml, which is also what `mise install` reads for local runs. This action is
-# loaded from the same forge checkout as that file, so a workflow at a given forge ref
-# always installs that ref's versions.
+# The one way forge's workflows install tools. By default the versions live in exactly one
+# place, forge's mise.toml, which is also what `mise install` reads for local runs. This
+# action is loaded from the same forge checkout as that file, so a workflow at a given
+# forge ref always installs that ref's versions.
 #
-# Only forge's mise.toml is read. In a consumer's job the forge checkout (.forge) sits
-# inside the consumer's workspace, so mise would otherwise also load the consumer's own
-# mise.toml one directory up, and a self-hosted runner's global config: either can add
+# mise only ever loads forge's mise.toml. In a consumer's job the forge checkout (.forge)
+# sits inside the consumer's workspace, so mise would otherwise also load the consumer's
+# own mise.toml one directory up, and a self-hosted runner's global config: either can add
 # tools, hooks or settings to this install, or fail it as untrusted. The MISE_* variables
 # below are set per step, so none of them leaks into the caller's later steps either;
 # what the job keeps is PATH entries, and mise itself on PATH.
+#
+# `pins: repo` does not change that. setup-tools.sh reads the version of each tool out of
+# the repository's mise.toml as text and hands mise `name@version`, so the repository
+# chooses versions and nothing else: the backend, the aliases and the tool options stay
+# forge's.
 
 inputs:
   tools:
@@ -23,6 +29,21 @@ inputs:
       `[tools]`, e.g. `ops,cargo-deny`. `name@version` installs that exact version
       instead, for a tool forge does not pin.
     required: true
+  pins:
+    description: >-
+      Where a tool named without a version gets one. `forge` (the default): forge's
+      mise.toml. `repo`: the mise.toml in `pins-directory` or the nearest one above it
+      that pins the tool, under its name or under the backend forge aliases it to
+      (`"cargo:cargo-edit"`); forge's pin for a tool none of them pins. A table pin gives
+      its `version` only. Fails if there is no mise.toml to read.
+    required: false
+    default: forge
+  pins-directory:
+    description: >-
+      With `pins: repo`, the directory to start looking for mise.toml in, relative to the
+      workspace. The search stops at the workspace root.
+    required: false
+    default: "."
   token:
     description: Token for downloading releases; authenticated requests avoid anonymous rate limits.
     required: false
@@ -36,11 +57,13 @@ runs:
       shell: bash
       env:
         TOOLS: ${{ inputs.tools }}
+        PINS: ${{ inputs.pins }}
+        PINS_DIRECTORY: ${{ inputs.pins-directory }}
         FORGE_ROOT: ${{ github.action_path }}/../..
       run: '"${GITHUB_ACTION_PATH}/setup-tools.sh" plan'
 
-    # Installs mise at a pinned version, then the requested tools from forge's mise.toml,
-    # cached per tool set (the key hashes `install_args`). Dependabot moves this SHA but
+    # Installs mise at a pinned version, then the requested tools under forge's mise.toml,
+    # cached per tool set and resolved versions (the key hashes `install_args`). Dependabot moves this SHA but
     # not `version`, so bump `version` with mise.toml (README "Layout").
     - name: Install ${{ steps.plan.outputs.mise-tools }}
       if: steps.plan.outputs.mise-tools != ''

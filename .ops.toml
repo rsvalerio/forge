@@ -65,6 +65,14 @@ program = "actions/move-major-tag/move-major-tag.test.sh"
 help = "move-major-tag's major guard: below, equal, above and non-numeric majors"
 category = "Code Quality"
 
+# `pins: repo` decides which cocogitto a consumer's bump runs; the resolution (nearest
+# mise.toml, backend-keyed and table pins, the fall back to forge's) is plain text
+# handling, so it is tested without mise or network.
+[commands.test-setup-tools]
+program = "actions/setup-tools/setup-tools.test.sh"
+help = "setup-tools' pin resolution: forge's pins, the repository's, and the fall back"
+category = "Code Quality"
+
 [commands.verify]
 commands = [
   "actionlint",
@@ -82,6 +90,7 @@ category = "Code Quality"
 commands = [
   "test-pool-update",
   "test-move-major-tag",
+  "test-setup-tools",
 ]
 fail_fast = false
 help = "forge's full gate: every local shell test (test-self's `ops qa` check runs this)"

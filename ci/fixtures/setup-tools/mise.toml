@@ -1,0 +1,6 @@
+# What test-self's `setup-tools-repo-pins` job reads as a caller's mise.toml: a cocogitto
+# pin deliberately behind forge's, so the job can tell which file the version came from.
+# Not one of the pins README.md ("Layout") says to bump; move it only if this release
+# stops installing, and keep it different from forge's.
+[tools]
+cocogitto = "6.5.0"
