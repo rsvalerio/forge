@@ -15,11 +15,76 @@ permissions:
   contents: read
 
 jobs:
+  # A change that touches only .backlog/ (task files) has nothing here to test, so every
+  # other job is skipped for it. The workflow still runs, rather than filtering the
+  # trigger with `paths-ignore`: main's ruleset requires the `ops verify` and `ops qa`
+  # checks, which a skipped job satisfies and a workflow that never started does not, and
+  # release.yml wants a successful `Test self` run on the commit it tags.
+  #
+  # `code` is `false` only when that is established; every other outcome, a failure of
+  # this job included, runs the jobs. They test `!= 'false'` under `!cancelled()` for that
+  # reason: a plain `needs` would skip them when this job fails, and a skip passes the
+  # required checks.
+  changes:
+    name: changes outside .backlog/
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: List the changed paths
+        id: diff
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          decide() { echo "code=$1" >>"$GITHUB_OUTPUT"; echo "code=$1: $2"; exit 0; }
+
+          case "$EVENT" in
+            # The checkout is the merge of the pull request into its base, so its first
+            # parent is the base and the diff is what the pull request changes.
+            pull_request) base="HEAD^1" ;;
+            push) base="$BEFORE" ;;
+            *) decide true "a ${EVENT} run tests everything" ;;
+          esac
+          git cat-file -e "${base}^{commit}" 2>/dev/null \
+            || decide true "the base commit '${base}' is not in the checkout"
+          paths="$(git diff --name-only "$base" HEAD)"
+          [ -n "$paths" ] || decide true "no changed paths found"
+          echo "$paths"
+          if grep -qv '^\.backlog/' <<<"$paths"; then
+            decide true "paths outside .backlog/ changed"
+          fi
+
+          # On main a skipped run is what release.yml reads as "this commit is tested", so
+          # skip only on top of a commit that has a successful run of its own. Otherwise a
+          # backlog commit pushed over a red or still-running one would turn main green.
+          if [ "$EVENT" = push ]; then
+            green="$(gh api \
+              "/repos/${GITHUB_REPOSITORY}/actions/workflows/test-self.yml/runs?head_sha=${BEFORE}&branch=${DEFAULT_BRANCH}&status=success&per_page=100" \
+              --jq '[.workflow_runs[] | select(.event != "pull_request" and .event != "pull_request_target")] | length')" \
+              || decide true "could not read the runs of ${BEFORE}"
+            [ "$green" -gt 0 ] || decide true "${BEFORE} has no successful Test self run to stand on"
+          fi
+          decide false "only .backlog/ changed"
+
   # forge's two gates, `ops verify` (lints) and `ops qa` (local shell tests), each defined
   # once in .ops.toml and each its own check here: these jobs run exactly what a developer
   # or wave runner runs locally, so a check is added there and nowhere else.
   verify:
     name: ops verify
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.code != 'false' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -43,6 +108,8 @@ jobs:
   # move-major-tag test stubs `gh` itself.
   qa:
     name: ops qa
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.code != 'false' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -68,6 +135,8 @@ jobs:
   # requests the token.
   publish-crates-dry-run:
     name: publish-crates dry run on a fixture crate
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.code != 'false' }}
     permissions:
       contents: read
       id-token: write
@@ -84,16 +153,57 @@ jobs:
   # root mise.toml above it, so this run installs forge's tools too.
   rust-ci:
     name: rust-ci
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.code != 'false' }}
     uses: ./.github/workflows/rust-ci.yml
     with:
       working-directory: ci/fixtures/rust-ci/ops
       run-msrv: true
+
+  # `pins: repo`, what bump.yml's `tool-pins: repo` passes: a tool the caller's mise.toml
+  # pins installs at that pin, one it does not pin at forge's. The fixture pins cocogitto
+  # behind forge's mise.toml and leaves yq out. actions/setup-tools/setup-tools.test.sh
+  # (in `ops qa`) covers the resolution rules; this is the install itself.
+  setup-tools-repo-pins:
+    name: setup-tools installs at a caller's mise.toml pins
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.code != 'false' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install cocogitto and yq at the fixture's pins
+        uses: ./actions/setup-tools
+        with:
+          tools: cocogitto, yq
+          pins: repo
+          pins-directory: ci/fixtures/setup-tools
+
+      - name: cocogitto is the fixture's version, yq is forge's
+        run: |
+          set -euo pipefail
+          pin() { sed -n '/^\[tools\]/,/^\[/ s/^'"$2"' = "\([^"]*\)".*/\1/p' "$1"; }
+          theirs="$(pin ci/fixtures/setup-tools/mise.toml cocogitto)"
+          ours="$(pin mise.toml cocogitto)"
+          yq_pin="$(pin mise.toml yq)"
+          [ -n "$theirs" ] && [ -n "$ours" ] && [ -n "$yq_pin" ] \
+            || { echo "::error::could not read the pins"; exit 1; }
+          [ "$theirs" != "$ours" ] \
+            || { echo "::error::the fixture pins cocogitto at forge's own version, so this proves nothing"; exit 1; }
+          [ "$(cog --version)" = "cog $theirs" ] \
+            || { echo "::error::cog is '$(cog --version)', the fixture pins $theirs"; exit 1; }
+          yq --version | grep -qF "version v${yq_pin}" \
+            || { echo "::error::yq is '$(yq --version)', forge pins $yq_pin"; exit 1; }
 
   # setup-ops as an action: mise.toml's ops pin installs through action.yml (the verify
   # and qa jobs reach setup-ops.sh through setup-tools instead; setup-ops-platforms below
   # covers ARM64 Linux and macOS), and the failure paths.
   setup-ops:
     name: setup-ops installs the pin, rejects what it cannot verify
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.code != 'false' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -164,6 +274,8 @@ jobs:
   # setup-ops, "Platforms").
   setup-ops-platforms:
     name: setup-ops on ${{ matrix.runner }}
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.code != 'false' }}
     strategy:
       fail-fast: false
       matrix:
@@ -208,6 +320,8 @@ jobs:
   # dist's actual output rather than a fixture's idea of it.
   deb-from-dist:
     name: deb-from-dist against an ops release
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.code != 'false' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -292,7 +406,9 @@ jobs:
     # Dependabot the key) keeps the App key away from freshly bumped, unreviewed action
     # code; the bump is still exercised here on the push to main after merge. Matched on
     # the PR author, not github.actor, so a human re-run of a Dependabot PR still skips.
+    needs: changes
     if: >-
+      !cancelled() && needs.changes.outputs.code != 'false' &&
       (github.event_name != 'pull_request' ||
        github.event.pull_request.head.repo.full_name == github.repository) &&
       github.event.pull_request.user.login != 'dependabot[bot]'
