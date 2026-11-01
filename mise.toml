@@ -26,7 +26,7 @@ cargo-edit = "cargo:cargo-edit"
 actionlint = "1.7.12"
 shellcheck = "0.11.0"
 yq = "4.53.6"
-ops = "0.77.0"
+ops = "0.90.1"
 
 # The Rust gate tools (ops's `qa`, and what rust-ci callers pin in their own mise.toml)
 # and bump.yml's `install-tools` default. cargo-edit publishes no binaries, so mise
