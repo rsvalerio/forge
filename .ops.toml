@@ -38,9 +38,14 @@ args = ["action-yml"]
 help = "Every action directory has a well-formed action.yml"
 category = "Code Quality"
 
+# README design rule 6. Local (`./`) refs are always exempt, and forge's own refs follow
+# docs/versioning.md.
+[lint_actions]
+allow = ["rsvalerio/forge/"]
+
 [commands.lint-pinned-actions]
-program = "ci/lint.sh"
-args = ["pinned-actions"]
+program = "sh"
+args = ["-c", "ops lint-actions 1>&2"]
 help = "Third-party actions are SHA-pinned with a version comment"
 category = "Code Quality"
 

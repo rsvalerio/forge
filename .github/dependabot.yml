@@ -1,6 +1,6 @@
 # Proposes bumps for the SHA pins README design rule 6 requires. Dependabot resolves the
 # new tag to its commit SHA and rewrites the `# vX.Y.Z` comment alongside it, so a bump PR
-# still passes `ci/lint.sh pinned-actions`.
+# still passes `ops lint-actions`.
 version: 2
 updates:
   - package-ecosystem: github-actions

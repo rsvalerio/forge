@@ -2,7 +2,7 @@
 # forge's static checks, one per subcommand. `ops verify` (.ops.toml) calls each one, and
 # test-self.yml's `ops verify` check runs it, so a new subcommand is wired in .ops.toml only.
 #
-#   ci/lint.sh shellcheck | executable | action-yml | pinned-actions
+#   ci/lint.sh shellcheck | executable | action-yml
 #
 # Run from the repository root. Errors go to stderr (ops shows a failing step's stderr)
 # as GitHub `::error` annotations, which the runner parses on either stream and
@@ -51,34 +51,12 @@ check_action_yml() {
   return $status
 }
 
-# README design rule: a third-party action is pinned to a full commit SHA with its
-# version tag in a comment. Local (`./`) and forge's own (`rsvalerio/forge/`) refs are
-# exempt; forge's own follow docs/versioning.md.
-check_pinned_actions() {
-  local f line ref status=0
-  local pinned='^[^@[:space:]]+@[0-9a-f]{40}[[:space:]]+#[[:space:]]*v[0-9][^[:space:]]*'
-  for f in .github/workflows/*.yml .github/workflows/*.yaml actions/*/action.yml; do
-    while IFS= read -r line; do
-      ref="${line#*uses:}"
-      ref="${ref#"${ref%%[![:space:]]*}"}"   # trim leading whitespace
-      ref="${ref//[\"\']/}"                  # drop quotes
-      case "$ref" in ./* | rsvalerio/forge/*) continue ;; esac
-      [[ "$ref" =~ $pinned ]] || {
-        echo "::error file=$f::not SHA-pinned with a version comment: ${ref}" >&2
-        status=1
-      }
-    done < <(grep -E '^[[:space:]]*(-[[:space:]]+)?uses:' "$f")
-  done
-  return $status
-}
-
 case "${1:-}" in
   shellcheck) check_shellcheck ;;
   executable) check_executable ;;
   action-yml) check_action_yml ;;
-  pinned-actions) check_pinned_actions ;;
   *)
-    echo "usage: $0 shellcheck|executable|action-yml|pinned-actions" >&2
+    echo "usage: $0 shellcheck|executable|action-yml" >&2
     exit 2
     ;;
 esac

@@ -88,7 +88,7 @@ reads forge's.
 
 | Tool | Needed by | `mise.toml` entry (forge's pin) |
 |---|---|---|
-| ops | every gate; every rust-ci job | `ops = "0.77.0"`, with `[tool_alias] ops = "github:rsvalerio/ops"` |
+| ops | every gate; every rust-ci job | `ops = "0.90.1"`, with `[tool_alias] ops = "github:rsvalerio/ops"` |
 | cargo-deny | `ops deps` (in `qa`) | `cargo-deny = "0.20.2"` (aqua) |
 | cargo-machete | `ops deps` (in `qa`; a warning: it is heuristic) | `cargo-machete = "0.9.2"`, with `[tool_alias] cargo-machete = "github:bnjbvr/cargo-machete"` |
 | cargo-nextest | `ops next`, where a repo's `.ops.toml` runs it (the default `qa` uses `cargo test`) | `cargo-nextest = { version = "0.9.146", version_prefix = "cargo-nextest-" }`, with `[tool_alias] cargo-nextest = "github:nextest-rs/nextest"` |

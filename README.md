@@ -110,7 +110,7 @@ jobs:
    key and publish releases, and every consumer inherits them, so a moved tag would run
    unreviewed code with those credentials everywhere at once. Local `./` refs and forge's
    own refs are exempt (the latter follow [docs/versioning.md](docs/versioning.md)).
-   `ci/lint.sh pinned-actions` enforces this in test-self and `ops verify`. Dependabot
+   `ops lint-actions` enforces this in test-self and `ops verify`. Dependabot
    (`.github/dependabot.yml`) proposes bumps weekly, for workflows and every composite
    action, moving the SHA and its version comment together: minor and patch bumps as one
    grouped PR, and each major version as its own PR, because a major can change what every
