@@ -1,10 +1,10 @@
 ---
 id: TASK-0057
 title: 'Replace ci/lint.sh pinned-actions with ops lint-actions'
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-11-01 12:26'
-updated_date: '2026-11-01 12:27'
+updated_date: '2026-11-01 13:17'
 labels:
   - ci
   - ops-alignment
@@ -33,4 +33,7 @@ The workflow pin policy is implemented in forge and in ops. ops now has the buil
 
 <!-- SECTION:NOTES:BEGIN -->
 ops lint-actions and the old check both passed the same 16 files before the swap, and a tag-pinned action fails ops verify with the file and line. The rust-ci fixture moved to the same pin; its ops verify passes locally. Gates ran on the local ops build, not the pinned 0.90.1, so test-self is the first run on the release.
+
+Landed as #35 (9c6d0b1). test-self ran both gates on the pinned ops 0.90.1 and passed.
+
 <!-- SECTION:NOTES:END -->
