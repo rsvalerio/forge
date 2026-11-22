@@ -67,7 +67,7 @@ runs:
     # not `version`, so bump `version` with mise.toml (README "Layout").
     - name: Install ${{ steps.plan.outputs.mise-tools }}
       if: steps.plan.outputs.mise-tools != ''
-      uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5.2.8
+      uses: jdx/mise-action@90f833d396d0cc3674b631d2d225e306476c303a # v5.2.10
       env:
         MISE_CEILING_PATHS: ${{ steps.plan.outputs.ceiling }}
         MISE_TRUSTED_CONFIG_PATHS: ${{ steps.plan.outputs.root }}
